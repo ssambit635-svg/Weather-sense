@@ -1,6 +1,15 @@
-"""Minimal stroke-based SVG icon set. No emoji anywhere in the app."""
+"""Minimal stroke-based SVG icon set + the WeatherSense brand mark.
+
+No emoji anywhere in the app — every glyph is purpose-drawn SVG.
+
+The brand mark ("sky loop") is a single-line cloud with a small sun breaking
+out above it: two strokes, no fill, drawn on a 24x24 grid so it scales from a
+16px favicon to the 76px splash without a hint of padding drift.
+"""
 
 from __future__ import annotations
+
+from urllib.parse import quote
 
 # ---------------------------------------------------------------------------
 # Generic UI icons (24x24, stroke style)
@@ -38,14 +47,16 @@ _UI = {
     "spark": '<path d="m13 2.5-8 11h6l-2 8.5 8.5-12H11l2-7.5Z"/>',
     "map": '<path d="M9 4.5 3.5 6.8v13L9 17.2l6 2.6 5.5-2.3v-13L15 7.1 9 4.5Z"/><path d="M9 4.5v12.7M15 7.1v12.7"/>',
     "globe": '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.5 2.4 3.8 5.3 3.8 8.5S14.5 18.1 12 20.5c-2.5-2.4-3.8-5.3-3.8-8.5S9.5 5.9 12 3.5Z"/>',
+    "wifi-off": '<path d="M3 3l18 18"/><path d="M8.6 15.4a5 5 0 0 1 6.8 0M5 11.8a10 10 0 0 1 4-2.5M19 11.8a10 10 0 0 0-6.6-2.9M2.5 8.2A15 15 0 0 1 9 4.6M21.5 8.2a15 15 0 0 0-4.4-2.6"/><path d="M12 19h.01"/>',
 }
 
 
 def icon(name: str, size: int = 16, cls: str = "", stroke: float = 1.7) -> str:
-    """Return an inline <svg> for a UI icon name."""
+    """Return an inline <svg> for a UI icon name (empty string if unknown)."""
     body = _UI.get(name)
     if body is None:
         return ""
+    cls = (cls or "").strip()
     return (
         f'<svg class="ic {cls}" width="{size}" height="{size}" viewBox="0 0 24 24" '
         f'fill="none" stroke="currentColor" stroke-width="{stroke}" '
@@ -56,19 +67,24 @@ def icon(name: str, size: int = 16, cls: str = "", stroke: float = 1.7) -> str:
 # ---------------------------------------------------------------------------
 # Weather glyphs — richer, condition-specific marks
 # ---------------------------------------------------------------------------
-def _cloud(cx: float = 12, cy: float = 13.5, s: float = 1.0) -> str:
-    """A soft filled/stroked cloud centered around (cx, cy), scale s."""
+def _cloud_d(cx: float = 12.0, cy: float = 13.5, s: float = 1.0) -> str:
+    """Path data for a soft cloud; the arcs close exactly back on the start."""
     return (
-        f'<path d="M{cx - 6.4 * s} {cy + 3.6 * s}h{11.6 * s}'
-        f'a{3.6 * s} {3.6 * s} 0 0 0 {0.4 * s} -{7.15 * s}'
-        f'a{5.1 * s} {5.1 * s} 0 0 0 -{9.85 * s} -{1.7 * s}'
-        f'a{3.9 * s} {3.9 * s} 0 0 0 -{2.15 * s} {8.85 * s}z"/>'
+        f"M{cx - 6.4 * s:.3f} {cy + 3.6 * s:.3f}h{11.6 * s:.3f}"
+        f"a{3.6 * s:.3f} {3.6 * s:.3f} 0 0 0 {0.4 * s:.3f} {-7.15 * s:.3f}"
+        f"a{5.1 * s:.3f} {5.1 * s:.3f} 0 0 0 {-9.85 * s:.3f} {-1.7 * s:.3f}"
+        f"a{3.9 * s:.3f} {3.9 * s:.3f} 0 0 0 {-2.15 * s:.3f} {8.85 * s:.3f}Z"
     )
 
 
+def _cloud(cx: float = 12, cy: float = 13.5, s: float = 1.0) -> str:
+    """A soft filled/stroked cloud centered around (cx, cy), scale s."""
+    return f'<path d="{_cloud_d(cx, cy, s)}"/>'
+
+
 def _sun_disc(cx: float = 12, cy: float = 12, r: float = 4) -> str:
-    rays = []
     import math
+    rays = []
     for i in range(8):
         a = math.radians(i * 45)
         x1, y1 = cx + (r + 1.6) * math.cos(a), cy + (r + 1.6) * math.sin(a)
@@ -145,7 +161,8 @@ _W = {
 
 def weather_icon(key: str, size: int = 24, cls: str = "", stroke: float = 1.5) -> str:
     """Return an inline <svg> weather glyph."""
-    body = _W.get(key, _W["cloud"])
+    body = _W.get(key) or _W["cloud"]
+    cls = (cls or "").strip()
     return (
         f'<svg class="wic {cls}" width="{size}" height="{size}" viewBox="0 0 24 24" '
         f'fill="none" stroke="currentColor" stroke-width="{stroke}" '
@@ -154,50 +171,107 @@ def weather_icon(key: str, size: int = 24, cls: str = "", stroke: float = 1.5) -
 
 
 # ---------------------------------------------------------------------------
-# Brand mark
+# Brand mark — "sky loop"
 # ---------------------------------------------------------------------------
-LOGO_SVG = """
-<svg width="26" height="26" viewBox="0 0 32 32" fill="none" aria-hidden="true">
-  <rect width="32" height="32" rx="9" fill="url(#wsg)"/>
-  <circle cx="12.5" cy="12" r="4.1" stroke="#0B0D12" stroke-width="0"/>
-  <circle cx="12.5" cy="12" r="4.1" fill="#0E1116" opacity="0"/>
-  <path d="M9.2 20.6h11.2a3.5 3.5 0 0 0 .4-6.97 4.9 4.9 0 0 0-9.3-1.55
-           3.75 3.75 0 0 0-2.3 8.52Z" fill="#0B0D12"/>
-  <path d="M21.6 9.4a5.2 5.2 0 0 1 0 7.4" stroke="#0B0D12" stroke-width="1.7" stroke-linecap="round"/>
-  <path d="M24.6 6.8a8.6 8.6 0 0 1 0 12.6" stroke="#0B0D12" stroke-width="1.7" stroke-linecap="round" opacity=".55"/>
-  <defs>
-    <linearGradient id="wsg" x1="0" y1="0" x2="32" y2="32">
-      <stop stop-color="var(--accent-1, #7CB8FF)"/>
-      <stop offset="1" stop-color="var(--accent-2, #4F8CF7)"/>
-    </linearGradient>
-  </defs>
-</svg>
-""".strip()
+# Geometry lives in one place so the header mark, the favicon, the empty state
+# and the splash loader are always the exact same drawing.
+#
+# Validated numerically (path sampling): ink bbox 1.32,2.78 → 21.73,19.66
+# inside the 24x24 box, optical centre (11.52, 11.22), 2.0u clearance between
+# the sun disc and the cloud stroke, 4.5u to the ray tips — nothing touches.
+_LOGO_CLOUD_D = _cloud_d(10.8, 16.2, 0.96)
+_LOGO_SUN = (18.6, 7.2, 2.4)          # cx, cy, r — breaks out above the cloud
+_LOGO_RAYS_D = "M18.6 4.18V2.78M16.46 5.06l-.99-.99M20.74 5.06l.99-.99"
+# centres the 24-box ink inside the 32-box tile (4 + optical offset)
+_LOGO_TILE_SHIFT = "translate(4.48 4.78)"
 
-LOGO_ONLY_SVG = """
-<svg width="20" height="20" viewBox="0 0 32 32" fill="none" aria-hidden="true">
-  <rect width="32" height="32" rx="9" fill="url(#wsg2)"/>
-  <path d="M9.2 20.6h11.2a3.5 3.5 0 0 0 .4-6.97 4.9 4.9 0 0 0-9.3-1.55
-           3.75 3.75 0 0 0-2.3 8.52Z" fill="#0B0D12"/>
-  <path d="M21.6 9.4a5.2 5.2 0 0 1 0 7.4" stroke="#0B0D12" stroke-width="1.7" stroke-linecap="round"/>
-  <path d="M24.6 6.8a8.6 8.6 0 0 1 0 12.6" stroke="#0B0D12" stroke-width="1.7" stroke-linecap="round" opacity=".55"/>
-  <defs>
-    <linearGradient id="wsg2" x1="0" y1="0" x2="32" y2="32">
-      <stop stop-color="#7CB8FF"/>
-      <stop offset="1" stop-color="#4F8CF7"/>
-    </linearGradient>
-  </defs>
-</svg>
-""".strip()
+_GRAD_FROM = "#8CC4FF"
+_GRAD_TO = "#4F8CF7"
 
-# Plain favicon-safe data URI (dark tile, cloud glyph)
-LOGO_DATA_URI = (
-    "data:image/svg+xml,"
-    + "%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E"
-    "%3Crect width='32' height='32' rx='9' fill='%234F8CF7'/%3E"
-    "%3Cpath d='M9.2 20.6h11.2a3.5 3.5 0 0 0 .4-6.97 4.9 4.9 0 0 0-9.3-1.55"
-    " 3.75 3.75 0 0 0-2.3 8.52Z' fill='%230B0D12'/%3E"
-    "%3Cpath d='M21.6 9.4a5.2 5.2 0 0 1 0 7.4' stroke='%230B0D12' stroke-width='1.7' stroke-linecap='round'/%3E"
-    "%3Cpath d='M24.6 6.8a8.6 8.6 0 0 1 0 12.6' stroke='%230B0D12' stroke-width='1.7' stroke-linecap='round' opacity='.55'/%3E"
-    "%3C/svg%3E"
+
+def _logo_gradient(uid: str) -> str:
+    return (
+        f'<defs><linearGradient id="wslogo-{uid}" x1="3" y1="3" x2="21" y2="20" '
+        f'gradientUnits="userSpaceOnUse">'
+        f'<stop stop-color="{_GRAD_FROM}"/><stop offset="1" stop-color="{_GRAD_TO}"/>'
+        f"</linearGradient></defs>"
+    )
+
+
+def _clean_uid(uid: str, fallback: str = "h") -> str:
+    return "".join(ch for ch in str(uid) if ch.isalnum()) or fallback
+
+
+def _logo_glyph(uid: str, stroke: float, color: str = "", animated: bool = False) -> str:
+    """Inner drawing of the mark (no wrapping <svg>), 24x24 user units.
+
+    When ``animated`` is set, both stroked paths carry ``pathLength="1"`` so the
+    CSS draw-in can work in normalised units (``stroke-dasharray: 1``) no matter
+    how long the real path is.
+    """
+    paint = color or f"url(#wslogo-{uid})"
+    cls = "ws-logo-glyph" + (" ws-logo-anim" if animated else "")
+    plen = ' pathLength="1"' if animated else ""
+    cx, cy, r = _LOGO_SUN
+    return (
+        ("" if color else _logo_gradient(uid))
+        + f'<g class="{cls}" fill="none" stroke="{paint}" stroke-width="{stroke}" '
+        + 'stroke-linecap="round" stroke-linejoin="round">'
+        + f'<g class="ws-logo-sun"><circle cx="{cx}" cy="{cy}" r="{r}"/>'
+        + f'<path class="ws-logo-rays" d="{_LOGO_RAYS_D}"{plen}/></g>'
+        + f'<path class="ws-logo-cloud" d="{_LOGO_CLOUD_D}"{plen}/></g>'
+    )
+
+
+def logo_mark(size: int = 26, uid: str = "h", stroke: float = 1.6,
+              color: str = "", animated: bool = False,
+              title: str = "WeatherSense") -> str:
+    """The bare line-art mark on a transparent background.
+
+    ``animated=True`` adds the stroke-draw / sun-pop classes used by the splash
+    loader; ``color`` overrides the gradient with a solid stroke.
+    """
+    uid = _clean_uid(uid, "h")
+    return (
+        f'<svg class="ws-logo" width="{size}" height="{size}" viewBox="0 0 24 24" '
+        f'fill="none" role="img" aria-label="{title}">'
+        + _logo_glyph(uid, stroke, color=color, animated=animated)
+        + "</svg>"
+    )
+
+
+def logo_tile(size: int = 32, uid: str = "t", animated: bool = False) -> str:
+    """Mark on a dark rounded tile — favicon, splash badge, app icon."""
+    uid = _clean_uid(uid, "t")
+    return (
+        f'<svg class="ws-logo-tile" width="{size}" height="{size}" viewBox="0 0 32 32" '
+        f'fill="none" role="img" aria-label="WeatherSense">'
+        f'<rect width="32" height="32" rx="9.5" fill="#0B0D12"/>'
+        f'<rect x=".5" y=".5" width="31" height="31" rx="9" stroke="rgba(255,255,255,.10)"/>'
+        f'<g transform="{_LOGO_TILE_SHIFT}">'
+        + _logo_glyph(uid + "i", 1.75, animated=animated)
+        + "</g></svg>"
+    )
+
+
+def _data_uri(svg: str) -> str:
+    return "data:image/svg+xml," + quote(svg, safe="")
+
+
+# Header mark, standalone mark and favicon — all the same drawing.
+LOGO_SVG = logo_mark(26, uid="hdr")
+LOGO_ONLY_SVG = logo_mark(20, uid="only")
+LOGO_TILE_SVG = logo_tile(32)
+
+# Favicon: a dark tile carries the mark at 16px on any browser chrome.
+# Solid stroke (no gradient refs) so it survives being inlined as a data URI.
+LOGO_DATA_URI = _data_uri(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">'
+    '<rect width="32" height="32" rx="9.5" fill="#0B0D12"/>'
+    f'<g transform="{_LOGO_TILE_SHIFT}" fill="none" stroke="#8CC4FF" stroke-width="1.9" '
+    'stroke-linecap="round" stroke-linejoin="round">'
+    f'<circle cx="{_LOGO_SUN[0]}" cy="{_LOGO_SUN[1]}" r="{_LOGO_SUN[2]}"/>'
+    f'<path d="{_LOGO_RAYS_D}"/>'
+    f'<path d="{_LOGO_CLOUD_D}"/>'
+    "</g></svg>"
 )

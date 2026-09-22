@@ -1,0 +1,34 @@
+# WeatherSense — Streamlit runtime configuration
+#
+# The two `enable*` flags below are what make the app open inside a proxied
+# preview / iframe (Codespaces, Arena, e2b, ngrok, Cloudflare tunnels, ...).
+# Without them Streamlit rejects the WebSocket handshake with
+#   "Rejecting WebSocket connection with disallowed Origin or Host header"
+# and the browser sits forever on an empty "Please wait..." shell.
+
+[server]
+headless = true
+address = "0.0.0.0"
+port = 8501
+enableCORS = false
+enableXsrfProtection = false
+maxUploadSize = 5
+runOnSave = false
+# never block the first paint on a slow file watcher
+fileWatcherType = "auto"
+
+[browser]
+gatherUsageStats = false
+# leave serverAddress unset so the app is reachable through any proxy host
+
+[theme]
+base = "dark"
+primaryColor = "#5B8DEF"
+backgroundColor = "#0A0C10"
+secondaryBackgroundColor = "#12151C"
+textColor = "#EDEFF4"
+font = "sans serif"
+
+[client]
+showErrorDetails = true
+toolbarMode = "minimal"

@@ -70,6 +70,10 @@ div[data-testid="stVerticalBlock"] > div:has(> .ws-gap) { margin: 0 !important; 
   text-transform: none; font-weight: 500;
 }
 .ic, .wic { display: inline-block; vertical-align: -3px; flex-shrink: 0; }
+.ws-logo, .ws-logo-tile { display: block; flex-shrink: 0; }
+
+/* search field sits flush against the action row */
+div[data-testid="stTextInput"] { margin-bottom: 0 !important; }
 
 /* ── header ── */
 .ws-header {
@@ -463,11 +467,143 @@ div[data-testid="stVerticalBlockBorderWrapper"] {
 }
 [data-testid="stSlider"] { display: none !important; }
 
+/* ── opening splash: brand mark draws itself, loader spins ── */
+.ws-splash {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 1rem; min-height: 56vh; padding: 3.6rem 1rem 3rem; text-align: center;
+}
+.ws-splash-badge {
+  position: relative; display: inline-flex;
+  align-items: center; justify-content: center;
+}
+/* soft accent halo breathing behind the mark */
+.ws-splash-badge::before {
+  content: ''; position: absolute; inset: -26px; border-radius: 50%;
+  background: radial-gradient(circle,
+              color-mix(in srgb, var(--accent) 30%, transparent), transparent 68%);
+  filter: blur(8px); opacity: .6;
+  animation: ws-halo 2.8s ease-in-out infinite;
+}
+@keyframes ws-halo {
+  0%, 100% { opacity: .45; transform: scale(.92); }
+  50%      { opacity: .9;  transform: scale(1.07); }
+}
+.ws-splash-badge .ws-logo { position: relative; z-index: 1; }
+
+/* stroke draw-in (paths carry pathLength="1" when animated) */
+.ws-logo-anim .ws-logo-cloud {
+  stroke-dasharray: 1; stroke-dashoffset: 1;
+  animation: ws-draw 1.25s cubic-bezier(.62,.02,.34,1) .12s forwards;
+}
+.ws-logo-anim .ws-logo-rays {
+  stroke-dasharray: 1; stroke-dashoffset: 1;
+  animation: ws-draw .55s ease-out 1.02s forwards;
+}
+.ws-logo-anim .ws-logo-sun {
+  transform-box: fill-box; transform-origin: center;
+  opacity: 0; animation: ws-pop .8s cubic-bezier(.34,1.52,.5,1) .58s forwards;
+}
+@keyframes ws-draw { to { stroke-dashoffset: 0; } }
+@keyframes ws-pop {
+  0%   { opacity: 0; transform: scale(.35) rotate(-18deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+
+.ws-word {
+  font-family: var(--font-display); font-size: 1.14rem; font-weight: 600;
+  letter-spacing: .34em; text-indent: .34em; color: var(--text);
+  opacity: 0; animation: ws-rise .7s ease .3s forwards;
+}
+.ws-tag {
+  font-size: .63rem; letter-spacing: .18em; text-transform: uppercase;
+  color: var(--text-3); opacity: 0; animation: ws-rise .7s ease .5s forwards;
+}
+@keyframes ws-rise {
+  from { opacity: 0; transform: translateY(7px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* the loader itself: counter-rotating arcs + a sliding shimmer bar */
+.ws-loader { display: flex; align-items: center; gap: .6rem; height: 22px; }
+.ws-ring { display: block; }
+.ws-ring-track { stroke: rgba(255,255,255,.10); }
+.ws-ring-a, .ws-ring-b { transform-box: fill-box; transform-origin: center; }
+.ws-ring-a { stroke: var(--accent); animation: ws-spin 1.15s linear infinite; }
+.ws-ring-b { stroke: rgba(255,255,255,.32); animation: ws-spin 1.9s linear infinite reverse; }
+@keyframes ws-spin { to { transform: rotate(360deg); } }
+
+.ws-status {
+  font-size: .66rem; font-weight: 600; letter-spacing: .18em;
+  text-transform: uppercase; color: var(--text-3);
+}
+.ws-dots i { font-style: normal; opacity: .18; animation: ws-dot 1.4s infinite; }
+.ws-dots i:nth-child(2) { animation-delay: .18s; }
+.ws-dots i:nth-child(3) { animation-delay: .36s; }
+@keyframes ws-dot { 0%, 60%, 100% { opacity: .18; } 30% { opacity: 1; } }
+
+.ws-bar {
+  position: relative; width: 152px; height: 2px; border-radius: 99px;
+  background: rgba(255,255,255,.08); overflow: hidden;
+}
+.ws-bar i {
+  position: absolute; top: 0; bottom: 0; left: 0; width: 42%;
+  border-radius: 99px; transition: width .3s ease, background .3s ease;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  animation: ws-slide 1.25s cubic-bezier(.45,0,.55,1) infinite;
+}
+@keyframes ws-slide {
+  0%   { transform: translateX(-115%); }
+  100% { transform: translateX(345%); }
+}
+/* data landed: bar completes, loader holds still, card fades away */
+.ws-splash.ws-ready .ws-bar i {
+  width: 100%; animation: none;
+  background: color-mix(in srgb, var(--accent) 70%, transparent);
+}
+.ws-splash.ws-ready .ws-ring-a, .ws-splash.ws-ready .ws-ring-b { animation: none; }
+.ws-splash.ws-ready .ws-status { color: var(--text-2); }
+.ws-splash.ws-out { animation: ws-fade-out .42s cubic-bezier(.4,0,.2,1) forwards; }
+@keyframes ws-fade-out {
+  to { opacity: 0; transform: translateY(-9px) scale(.988); filter: blur(2px); }
+}
+
+/* ── fatal-error card (replaces a blank screen / raw traceback) ── */
+.ws-fatal {
+  background: var(--card); border: 1px solid var(--line);
+  border-left: 2px solid var(--bad); border-radius: var(--radius);
+  padding: 1.1rem 1.15rem; margin-top: 1rem;
+}
+.ws-fatal .ttl {
+  display: flex; align-items: center; gap: .5rem;
+  font-size: .95rem; font-weight: 650; color: var(--text);
+}
+.ws-fatal .ttl svg { color: var(--bad); }
+.ws-fatal .body { font-size: .78rem; color: var(--text-2); line-height: 1.55; margin-top: .45rem; }
+.ws-fatal code {
+  display: inline-block; margin-top: .5rem; padding: .18rem .4rem;
+  background: rgba(255,255,255,.05); border-radius: 6px;
+  font-size: .72rem; color: var(--text);
+}
+
+/* honour the OS "reduce motion" setting everywhere */
+@media (prefers-reduced-motion: reduce) {
+  .hero-icon, .live-dot, .ws-splash-badge::before,
+  .ws-ring-a, .ws-ring-b, .ws-bar i, .ws-dots i { animation: none !important; }
+  .ws-logo-anim .ws-logo-cloud, .ws-logo-anim .ws-logo-rays {
+    stroke-dashoffset: 0 !important; animation: none !important;
+  }
+  .ws-logo-anim .ws-logo-sun, .ws-word, .ws-tag { opacity: 1 !important; animation: none !important; }
+  .ws-splash.ws-out { animation: none !important; opacity: 0 !important; }
+}
+
 /* narrow phones */
 @media (max-width: 640px) {
   [data-testid="stMainBlockContainer"] { padding: 1rem .85rem 4rem !important; }
   .insights { grid-template-columns: 1fr; }
   .day { grid-template-columns: 46px 24px 34px 1fr 40px; gap: .5rem; padding: .7rem .8rem; }
+  .ws-splash { min-height: 48vh; padding: 2.6rem .8rem 2.2rem; gap: .85rem; }
+  .ws-word { font-size: 1rem; letter-spacing: .28em; text-indent: .28em; }
+  .ws-bar { width: 128px; }
 }
 </style>
 """

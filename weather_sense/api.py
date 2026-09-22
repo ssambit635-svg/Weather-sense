@@ -1,10 +1,25 @@
-"""Open-Meteo clients: geocoding, forecast, air quality, IP location."""
+"""Open-Meteo clients: geocoding, forecast, air quality, IP location.
+
+Robustness rules applied throughout this module:
+
+* **Never cache a failure.** Cached helpers raise :class:`WeatherError` when a
+  service is unreachable — Streamlit does not cache exceptions — and the public
+  wrappers translate that into the offline sample fallback. Without this, one
+  bad request would pin the app to stale/empty data for the whole TTL.
+* **Never hang the first paint.** Every request uses an explicit
+  ``(connect, read)`` timeout and a cached connectivity probe short-circuits
+  the whole network path when the sandbox has no egress.
+* **Never trust the payload shape.** :func:`normalize_forecast` rebuilds the
+  forecast dict so every key the UI reads exists, numbers are numbers (or
+  ``None``), and list lengths always match ``time``.
+"""
 
 from __future__ import annotations
 
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 
 import requests
 import streamlit as st
@@ -13,7 +28,12 @@ GEO_URL = "https://geocoding-api.open-meteo.com/v1/search"
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 AQI_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
 IP_URL = "https://ipwho.is/"
-TIMEOUT = 12
+
+# (connect, read) — a dead network must fail in ~4 s, not 12+.
+CONNECT_TIMEOUT = 4.0
+READ_TIMEOUT = 10.0
+TIMEOUT = (CONNECT_TIMEOUT, READ_TIMEOUT)
+PROBE_TIMEOUT = (3.0, 5.0)
 
 CURRENT_FIELDS = (
     "temperature_2m,relative_humidity_2m,apparent_temperature,is_day,"
@@ -84,73 +104,175 @@ FAMILY_STYLE: dict[str, tuple[str, str]] = {
 }
 
 
-def code_info(code: int, is_day: bool = True) -> tuple[str, str, str]:
+def code_info(code: Any, is_day: bool = True) -> tuple[str, str, str]:
     """Return (condition label, icon key, accent hex) for a WMO weather code."""
-    label, family = _CODES.get(code, ("Unknown", "partly"))
+    try:
+        code_i = int(code)
+    except (TypeError, ValueError):
+        code_i = -1
+    label, family = _CODES.get(code_i, ("Unknown", "partly"))
     style_label, accent = FAMILY_STYLE.get(family, ("Partly cloudy", "#9FB4CC"))
     if family in ("clear", "mostly", "partly"):
-        suffix = "" if family == "clear" else ""
-        label = style_label + suffix
+        label = style_label
         key = family + ("-day" if is_day else "-night")
     else:
         key = family
     return label, key, accent
 
 
-def wind_dir_name(deg: float) -> str:
+def wind_dir_name(deg: Any) -> str:
+    """Compass point for a bearing; tolerant of ``None``/garbage input."""
+    d = num(deg)
+    if d is None:
+        return "--"
     dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
-    return dirs[round(deg / 45) % 8]
+    return dirs[int(round(d / 45.0)) % 8]
 
 
-def wind_dir_full(deg: float) -> str:
+def wind_dir_full(deg: Any) -> str:
     full = {
         "N": "north", "NE": "north-east", "E": "east", "SE": "south-east",
         "S": "south", "SW": "south-west", "W": "west", "NW": "north-west",
     }
-    return full[wind_dir_name(deg)]
+    return full.get(wind_dir_name(deg), "unknown direction")
+
+
+# ---------------------------------------------------------------------------
+# Numeric coercion helpers
+# ---------------------------------------------------------------------------
+def num(value: Any) -> Optional[float]:
+    """Best-effort float, or ``None`` when the value is unusable."""
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        f = float(value)
+    except (TypeError, ValueError):
+        return None
+    if f != f or f in (float("inf"), float("-inf")):  # NaN / inf
+        return None
+    return f
+
+
+def num_or(value: Any, default: float = 0.0) -> float:
+    v = num(value)
+    return default if v is None else v
+
+
+def valid_place(place: Any) -> bool:
+    """A place is usable only if it carries numeric coordinates."""
+    if not isinstance(place, dict):
+        return False
+    lat, lon = num(place.get("lat")), num(place.get("lon"))
+    if lat is None or lon is None:
+        return False
+    return -90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0
 
 
 # ---------------------------------------------------------------------------
 # HTTP helpers
 # ---------------------------------------------------------------------------
-def _get(url: str, params: dict) -> dict:
+def _get(url: str, params: dict, timeout: Any = TIMEOUT) -> dict:
     try:
-        r = requests.get(url, params=params, timeout=TIMEOUT)
+        r = requests.get(url, params=params, timeout=timeout)
         r.raise_for_status()
         return r.json()
     except (requests.exceptions.RequestException, ValueError) as exc:
         raise WeatherError(str(exc)) from exc
 
 
+@st.cache_data(ttl=120, show_spinner=False)
+def network_ok() -> bool:
+    """Cheap egress probe so an offline sandbox never waits on three timeouts.
+
+    Any HTTP response (even 4xx) proves egress works; only transport errors
+    mean "offline". Cached for 2 minutes, so recovery is picked up quickly.
+    """
+    for method, args in (
+        ("head", (FORECAST_URL,)),
+        ("get", (GEO_URL,)),
+    ):
+        try:
+            if method == "head":
+                requests.head(args[0], timeout=PROBE_TIMEOUT, allow_redirects=True)
+            else:
+                requests.get(args[0], params={"name": "London", "count": 1},
+                             timeout=PROBE_TIMEOUT)
+            return True
+        except Exception:
+            continue
+    return False
+
+
+def _submit_ctx(pool: ThreadPoolExecutor, fn, *args, **kwargs):
+    """Submit `fn` to `pool`, carrying the Streamlit script-run context over.
+
+    Without this, cached calls made from worker threads log
+    "missing ScriptRunContext" noise. Purely cosmetic — degrades silently.
+    """
+    ctx = None
+    try:
+        from streamlit.runtime.scriptrunner import (  # type: ignore
+            add_script_run_ctx, get_script_run_ctx,
+        )
+        ctx = get_script_run_ctx()
+    except Exception:
+        add_script_run_ctx = None  # type: ignore
+
+    def runner():
+        if ctx is not None and add_script_run_ctx is not None:
+            try:
+                add_script_run_ctx(threading.current_thread(), ctx)
+            except Exception:
+                pass
+        return fn(*args, **kwargs)
+
+    return pool.submit(runner)
+
+
 # ---------------------------------------------------------------------------
-# Cached API calls
+# Cached remote calls (raise on failure so failures are never cached)
 # ---------------------------------------------------------------------------
 @st.cache_data(ttl=60 * 60 * 24, show_spinner=False)
-def geocode(query: str, count: int = 6) -> list[dict]:
-    """City search via Open-Meteo geocoding (offline gazetteer fallback)."""
-    q = query.strip()
-    if not q:
-        return []
-    try:
-        data = _get(GEO_URL, {"name": q, "count": count, "language": "en", "format": "json"})
-    except WeatherError:
-        from weather_sense.sample import gazetteer
-        return gazetteer(q, count)
-    out = []
-    for r in data.get("results", []):
-        out.append({
-            "name": r.get("name", q),
-            "admin": r.get("admin1", ""),
-            "country": r.get("country", ""),
-            "country_code": r.get("country_code", ""),
-            "lat": r["latitude"],
-            "lon": r["longitude"],
-        })
+def _remote_geocode(query: str, count: int = 6) -> list[dict]:
+    data = _get(GEO_URL, {"name": query, "count": count,
+                          "language": "en", "format": "json"})
+    out: list[dict] = []
+    for r in data.get("results") or []:
+        if not isinstance(r, dict):
+            continue
+        place = {
+            "name": r.get("name") or query,
+            "admin": r.get("admin1") or "",
+            "country": r.get("country") or "",
+            "country_code": r.get("country_code") or "",
+            "lat": num(r.get("latitude")),
+            "lon": num(r.get("longitude")),
+        }
+        # drop malformed hits instead of crashing the UI later
+        if valid_place(place):
+            out.append(place)
     return out
 
 
+def geocode(query: str, count: int = 6) -> list[dict]:
+    """City search via Open-Meteo geocoding (offline gazetteer fallback)."""
+    q = (query or "").strip()
+    if not q:
+        return []
+    hits: Optional[list[dict]] = None
+    if network_ok():
+        try:
+            hits = _remote_geocode(q, count)
+        except WeatherError:
+            hits = None
+    if hits is None:
+        from weather_sense.sample import gazetteer
+        return gazetteer(q, count)
+    return hits
+
+
 @st.cache_data(ttl=300, show_spinner=False)
-def fetch_forecast(lat: float, lon: float) -> dict:
+def _remote_forecast(lat: float, lon: float) -> dict:
     return _get(FORECAST_URL, {
         "latitude": lat, "longitude": lon,
         "current": CURRENT_FIELDS,
@@ -163,7 +285,7 @@ def fetch_forecast(lat: float, lon: float) -> dict:
 
 
 @st.cache_data(ttl=300, show_spinner=False)
-def fetch_aqi(lat: float, lon: float) -> dict:
+def _remote_aqi(lat: float, lon: float) -> dict:
     return _get(AQI_URL, {
         "latitude": lat, "longitude": lon,
         "current": "us_aqi,pm2_5,pm10",
@@ -172,71 +294,198 @@ def fetch_aqi(lat: float, lon: float) -> dict:
 
 
 @st.cache_data(ttl=60 * 60, show_spinner=False)
+def _remote_ip_location() -> dict:
+    data = _get(IP_URL, {}, timeout=(CONNECT_TIMEOUT, READ_TIMEOUT))
+    if not data.get("success", True):
+        raise WeatherError("ipwho.is reported failure")
+    place = {
+        "name": data.get("city") or "Current location",
+        "admin": data.get("region") or "",
+        "country": data.get("country") or "",
+        "country_code": data.get("country_code") or "",
+        "lat": num(data.get("latitude")),
+        "lon": num(data.get("longitude")),
+    }
+    if not valid_place(place):
+        raise WeatherError("ipwho.is returned no usable coordinates")
+    return place
+
+
 def locate_by_ip() -> Optional[dict]:
     """Best-effort city-level location from the public IP (ipwho.is, no key)."""
+    if not network_ok():
+        return None
     try:
-        data = _get(IP_URL, {})
+        return _remote_ip_location()
     except WeatherError:
         return None
-    if not data.get("success", True):
-        return None
-    if data.get("latitude") is None or data.get("longitude") is None:
-        return None
+
+
+# ---------------------------------------------------------------------------
+# Payload normalisation — the UI can then read keys unconditionally
+# ---------------------------------------------------------------------------
+_CURRENT_NUMERIC = (
+    "temperature_2m", "apparent_temperature", "relative_humidity_2m",
+    "precipitation", "cloud_cover", "pressure_msl",
+    "wind_speed_10m", "wind_direction_10m", "wind_gusts_10m",
+)
+_HOURLY_NUMERIC = (
+    "temperature_2m", "precipitation_probability", "uv_index", "visibility",
+)
+_HOURLY_INT = ("weather_code", "is_day")
+_DAILY_NUMERIC = (
+    "temperature_2m_max", "temperature_2m_min", "uv_index_max",
+    "precipitation_probability_max", "precipitation_sum", "wind_speed_10m_max",
+)
+_DAILY_INT = ("weather_code",)
+_DAILY_STR = ("sunrise", "sunset")
+
+
+def _list(values: Any) -> list:
+    """Any sequence -> list; anything else -> empty list (never None)."""
+    return list(values) if isinstance(values, (list, tuple)) else []
+
+
+def _pad(values: Any, n: int, default: Any = None) -> list:
+    """Coerce to a list of exactly `n` entries, so index lookups are safe."""
+    out = _list(values)
+    if len(out) < n:
+        out = out + [default] * (n - len(out))
+    return out[:n]
+
+
+def normalize_forecast(raw: Any) -> dict:
+    """Rebuild a forecast payload so the UI never hits KeyError/IndexError."""
+    raw = raw if isinstance(raw, dict) else {}
+    cur_raw = raw.get("current") if isinstance(raw.get("current"), dict) else {}
+
+    now_iso = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    current: dict[str, Any] = {
+        "time": str(cur_raw.get("time") or now_iso),
+        "weather_code": int(num_or(cur_raw.get("weather_code"), 2)),
+        "is_day": 0 if cur_raw.get("is_day") in (0, False, "0") else 1,
+    }
+    for key in _CURRENT_NUMERIC:
+        current[key] = num(cur_raw.get(key))
+
+    hourly_raw = raw.get("hourly") if isinstance(raw.get("hourly"), dict) else {}
+    times = [str(t) for t in _list(hourly_raw.get("time"))]
+    n_h = len(times)
+    hourly: dict[str, Any] = {"time": times}
+    for key in _HOURLY_NUMERIC:
+        hourly[key] = [num(v) for v in _pad(hourly_raw.get(key), n_h, None)]
+    for key in _HOURLY_INT:
+        default = 1 if key == "is_day" else 2
+        hourly[key] = [int(num_or(v, default)) for v in _pad(hourly_raw.get(key), n_h, default)]
+
+    daily_raw = raw.get("daily") if isinstance(raw.get("daily"), dict) else {}
+    d_times = [str(t) for t in _list(daily_raw.get("time"))]
+    n_d = len(d_times)
+    daily: dict[str, Any] = {"time": d_times}
+    for key in _DAILY_NUMERIC:
+        daily[key] = [num(v) for v in _pad(daily_raw.get(key), n_d, None)]
+    for key in _DAILY_INT:
+        daily[key] = [int(num_or(v, 2)) for v in _pad(daily_raw.get(key), n_d, 2)]
+    for key in _DAILY_STR:
+        daily[key] = [(str(v) if v else "") for v in _pad(daily_raw.get(key), n_d, "")]
+
     return {
-        "name": data.get("city") or "Current location",
-        "admin": data.get("region", ""),
-        "country": data.get("country", ""),
-        "country_code": data.get("country_code", ""),
-        "lat": data["latitude"],
-        "lon": data["longitude"],
+        "latitude": num(raw.get("latitude")),
+        "longitude": num(raw.get("longitude")),
+        "timezone": str(raw.get("timezone") or "UTC"),
+        "utc_offset_seconds": int(num_or(raw.get("utc_offset_seconds"), 0)),
+        "current_units": raw.get("current_units") or {},
+        "current": current,
+        "hourly": hourly,
+        "daily": daily,
+    }
+
+
+def normalize_aqi(raw: Any) -> dict:
+    """Same idea for the air-quality payload."""
+    raw = raw if isinstance(raw, dict) else {}
+    cur = raw.get("current") if isinstance(raw.get("current"), dict) else {}
+    return {
+        "timezone": str(raw.get("timezone") or "UTC"),
+        "current": {
+            "time": str(cur.get("time") or ""),
+            "us_aqi": num(cur.get("us_aqi")),
+            "pm2_5": num(cur.get("pm2_5")),
+            "pm10": num(cur.get("pm10")),
+        },
     }
 
 
 # ---------------------------------------------------------------------------
-# Bundle: weather + AQI fetched in parallel, offline fallback if needed
+# Bundle: weather + AQI in parallel, offline fallback when unreachable
 # ---------------------------------------------------------------------------
 @st.cache_data(ttl=300, show_spinner=False)
-def fetch_bundle(lat: float, lon: float) -> dict:
-    """Fetch forecast + AQI in parallel. Falls back to sample data offline."""
+def _offline_bundle(lat: float, lon: float) -> dict:
+    """Cached sample dataset — stable across reruns, expires like live data."""
+    from weather_sense import sample
+    return {
+        "weather": normalize_forecast(sample.forecast(lat, lon)),
+        "aqi": normalize_aqi(sample.air_quality(lat, lon)),
+        "offline": True,
+    }
+
+
+def fetch_bundle(lat: Any, lon: Any) -> dict:
+    """Fetch forecast + AQI in parallel; fall back to sample data offline.
+
+    Deliberately *not* cached itself: the cached layer underneath holds live
+    results for 5 minutes, while a cached failure would keep the app offline
+    long after the network came back.
+    """
+    lat_f, lon_f = num(lat), num(lon)
+    if lat_f is None or lon_f is None:
+        return {"weather": normalize_forecast({}), "aqi": {}, "offline": True}
+
+    if not network_ok():
+        return _offline_bundle(lat_f, lon_f)
+
     weather: Optional[dict] = None
     aqi: Optional[dict] = None
-    offline = False
     with ThreadPoolExecutor(max_workers=2) as pool:
-        f_weather = pool.submit(fetch_forecast, lat, lon)
-        f_aqi = pool.submit(fetch_aqi, lat, lon)
+        f_weather = _submit_ctx(pool, _remote_forecast, lat_f, lon_f)
+        f_aqi = _submit_ctx(pool, _remote_aqi, lat_f, lon_f)
         try:
             weather = f_weather.result()
-        except WeatherError:
+        except Exception:
             weather = None
         try:
             aqi = f_aqi.result()
-        except WeatherError:
+        except Exception:
             aqi = None
+
     if weather is None:
-        offline = True
-        from weather_sense import sample
-        weather = sample.forecast(lat, lon)
-        aqi = aqi or sample.air_quality(lat, lon)
-    return {"weather": weather, "aqi": aqi or {}, "offline": offline}
+        return _offline_bundle(lat_f, lon_f)
+    return {
+        "weather": normalize_forecast(weather),
+        "aqi": normalize_aqi(aqi) if aqi else {},
+        "offline": False,
+    }
 
 
 @st.cache_data(ttl=600, show_spinner=False)
-def city_temp(place: dict) -> Optional[float]:
-    """Current temperature for a saved city chip (sample fallback offline)."""
+def city_temp(lat: float, lon: float) -> Optional[float]:
+    """Current temperature for a saved-city chip (sample fallback offline)."""
     try:
-        b = fetch_bundle(place["lat"], place["lon"])
-        return b["weather"]["current"]["temperature_2m"]
-    except WeatherError:
+        b = fetch_bundle(lat, lon)
+        return num(b["weather"]["current"].get("temperature_2m"))
+    except Exception:
         return None
 
 
 def city_temps(places: list[dict]) -> dict[str, Optional[float]]:
     """Parallel current temps keyed by place name."""
     out: dict[str, Optional[float]] = {}
-    if not places:
+    usable = [p for p in (places or []) if valid_place(p)]
+    if not usable:
         return out
-    with ThreadPoolExecutor(max_workers=min(6, len(places))) as pool:
-        futs = {pool.submit(city_temp, p): p for p in places}
+    with ThreadPoolExecutor(max_workers=min(6, len(usable))) as pool:
+        futs = {_submit_ctx(pool, city_temp, num(p["lat"]), num(p["lon"])): p
+                for p in usable}
         for fut in as_completed(futs):
             p = futs[fut]
             try:
@@ -251,25 +500,28 @@ def city_temps(places: list[dict]) -> dict[str, Optional[float]]:
 # ---------------------------------------------------------------------------
 def aqi_info(aqi: Optional[float]) -> tuple[str, str, float, str]:
     """Return (label, color, bar percent, advice)."""
-    if not aqi:
+    a = num(aqi)
+    if a is None:
         return "Unavailable", "#8B97A8", 0, "Air quality data unavailable right now."
-    if aqi <= 50:
+    if a <= 50:
         return "Good", "#34C759", 8, "Air is clean — enjoy outdoor activities."
-    if aqi <= 100:
+    if a <= 100:
         return "Moderate", "#E5B83E", 24, "Acceptable; unusually sensitive people should take it easy."
-    if aqi <= 150:
+    if a <= 150:
         return "Unhealthy for sensitive groups", "#F08C2E", 41, "Sensitive groups should reduce intense outdoor activity."
-    if aqi <= 200:
+    if a <= 200:
         return "Unhealthy", "#EF5B5B", 58, "Everyone may begin to feel effects — limit time outdoors."
-    if aqi <= 300:
+    if a <= 300:
         return "Very unhealthy", "#A45BF0", 76, "Health alert — avoid outdoor activity if you can."
     return "Hazardous", "#8B4BF0", 94, "Emergency conditions — stay indoors."
 
 
-def stargazing(cloud: int, aqi: Optional[float], family_key: str) -> tuple[int, str, str, str]:
+def stargazing(cloud: Any, aqi: Optional[float], family_key: str) -> tuple[int, str, str, str]:
     if family_key in ("rain", "heavy-rain", "snow", "thunder", "hail", "sleet", "fog", "drizzle"):
         return 0, "Not tonight", "#EF5B5B", "Cloud cover and precipitation block the sky."
-    score = max(0, min(100, 100 - cloud - (min(aqi // 5, 30) if aqi else 0)))
+    c = num_or(cloud, 50)
+    a = num(aqi)
+    score = max(0, min(100, int(100 - c - (min(a / 5.0, 30) if a is not None else 0))))
     if score >= 75:
         return score, "Excellent", "#34C759", "Clear and dark — ideal for stargazing."
     if score >= 50:
@@ -279,36 +531,42 @@ def stargazing(cloud: int, aqi: Optional[float], family_key: str) -> tuple[int, 
     return score, "Poor", "#EF5B5B", "Too cloudy to see much tonight."
 
 
-def mosquito(temp: float, humidity: float) -> tuple[str, str, str]:
-    if temp >= 25 and humidity >= 70:
+def mosquito(temp: Any, humidity: Any) -> tuple[str, str, str]:
+    t, h = num_or(temp, 15), num_or(humidity, 50)
+    if t >= 25 and h >= 70:
         return "High", "#EF5B5B", "Warm and humid — peak activity. Use repellent after sunset."
-    if temp >= 20 and humidity >= 55:
+    if t >= 20 and h >= 55:
         return "Moderate", "#F08C2E", "Some activity in the evening. Take standard precautions."
     return "Low", "#34C759", "Conditions are unfavourable for mosquitoes."
 
 
-def outdoor_score(temp: float, wind: float, aqi: Optional[float], family: str) -> tuple[int, str, str, str]:
+def outdoor_score(temp: Any, wind: Any, aqi: Optional[float], family: str) -> tuple[int, str, str, str]:
     if family in ("thunder", "hail"):
         return 0, "Dangerous", "#EF5B5B", "Severe weather — stay indoors."
+    t = num(temp)
+    if t is None:
+        return 50, "Unknown", "#8B97A8", "Not enough live data to score the outdoors."
+    w = num_or(wind, 0)
+    a = num(aqi)
     score = 100
-    if temp > 38 or temp < 0:
+    if t > 38 or t < 0:
         score -= 50
-    elif temp > 33 or temp < 5:
+    elif t > 33 or t < 5:
         score -= 25
-    elif 18 <= temp <= 28:
+    elif 18 <= t <= 28:
         score += 10
-    if wind > 60:
+    if w > 60:
         score -= 40
-    elif wind > 40:
+    elif w > 40:
         score -= 20
-    elif wind > 25:
+    elif w > 25:
         score -= 10
-    if aqi:
-        if aqi > 150:
+    if a is not None:
+        if a > 150:
             score -= 40
-        elif aqi > 100:
+        elif a > 100:
             score -= 20
-        elif aqi > 50:
+        elif a > 50:
             score -= 10
     if family in ("rain", "heavy-rain", "snow", "drizzle", "sleet"):
         score -= 30
@@ -326,38 +584,44 @@ def outdoor_score(temp: float, wind: float, aqi: Optional[float], family: str) -
     return score, "Avoid", "#EF5B5B", "Not recommended right now."
 
 
-def build_alerts(label: str, temp: float, wind: float, aqi: Optional[float],
-                 gusts: float, family: str) -> list[tuple[str, str, str]]:
+def build_alerts(label: str, temp: Any, wind: Any, aqi: Optional[float],
+                 gusts: Any, family: str) -> list[tuple[str, str, str]]:
+    t = num(temp)
+    w = num_or(wind, 0)
+    g = num_or(gusts, 0)
+    a = num(aqi)
     alerts: list[tuple[str, str, str]] = []
-    if temp >= 40:
-        alerts.append(("Extreme heat warning",
-                       f"{temp:.0f}\u00b0C is dangerous. Stay hydrated, avoid direct sun.",
-                       "#EF5B5B"))
-    elif temp >= 35:
-        alerts.append(("Heat advisory",
-                       f"{temp:.0f}\u00b0C — limit prolonged outdoor exposure.", "#F08C2E"))
-    if temp <= 0:
-        alerts.append(("Freezing conditions",
-                       f"{temp:.0f}\u00b0C — frostbite risk on exposed skin.", "#6EA8FE"))
+    if t is not None:
+        if t >= 40:
+            alerts.append(("Extreme heat warning",
+                           f"{t:.0f}\u00b0C is dangerous. Stay hydrated, avoid direct sun.",
+                           "#EF5B5B"))
+        elif t >= 35:
+            alerts.append(("Heat advisory",
+                           f"{t:.0f}\u00b0C — limit prolonged outdoor exposure.", "#F08C2E"))
+        if t <= 0:
+            alerts.append(("Freezing conditions",
+                           f"{t:.0f}\u00b0C — frostbite risk on exposed skin.", "#6EA8FE"))
     if family == "thunder":
         alerts.append(("Thunderstorm",
                        "Avoid open ground, water and metal objects.", "#8B7CF6"))
-    if family == "snow" and (gusts or wind) > 40:
+    if family == "snow" and max(w, g) > 40:
         alerts.append(("Blizzard conditions",
-                       f"Snow with {max(wind, gusts or 0):.0f} km/h gusts — travel not advised.",
+                       f"Snow with {max(w, g):.0f} km/h gusts — travel not advised.",
                        "#5B8DEF"))
-    if gusts and gusts > 70:
+    if g > 70:
         alerts.append(("High wind gusts",
-                        f"Gusts to {gusts:.0f} km/h — secure loose objects.", "#EF5B5B"))
-    elif wind > 50:
+                       f"Gusts to {g:.0f} km/h — secure loose objects.", "#EF5B5B"))
+    elif w > 50:
         alerts.append(("Strong wind",
-                       f"{wind:.0f} km/h sustained. Take care outdoors.", "#F08C2E"))
-    if aqi and aqi > 200:
-        alerts.append(("Unhealthy air quality",
-                       f"US AQI {aqi:.0f} — wear a mask outdoors, keep windows shut.", "#A45BF0"))
-    elif aqi and aqi > 150:
-        alerts.append(("Poor air quality",
-                       f"US AQI {aqi:.0f} — sensitive groups should stay indoors.", "#F08C2E"))
+                       f"{w:.0f} km/h sustained. Take care outdoors.", "#F08C2E"))
+    if a is not None:
+        if a > 200:
+            alerts.append(("Unhealthy air quality",
+                           f"US AQI {a:.0f} — wear a mask outdoors, keep windows shut.", "#A45BF0"))
+        elif a > 150:
+            alerts.append(("Poor air quality",
+                           f"US AQI {a:.0f} — sensitive groups should stay indoors.", "#F08C2E"))
     if family == "fog":
         alerts.append(("Dense fog",
                        "Greatly reduced visibility — drive slowly with low beams.", "#9AA3B2"))
@@ -367,25 +631,53 @@ def build_alerts(label: str, temp: float, wind: float, aqi: Optional[float],
 # ---------------------------------------------------------------------------
 # Units & formatting
 # ---------------------------------------------------------------------------
-def to_unit(celsius: float, unit: str) -> float:
-    if unit == "F":
-        return celsius * 9 / 5 + 32
-    return celsius
+def to_unit(celsius: Any, unit: str) -> Optional[float]:
+    """Convert °C to the display unit; ``None`` in, ``None`` out."""
+    c = num(celsius)
+    if c is None:
+        return None
+    return c * 9 / 5 + 32 if unit == "F" else c
 
 
 def fmt_t(celsius: Optional[float], unit: str, decimals: int = 0) -> str:
-    if celsius is None:
-        return "--"
     v = to_unit(celsius, unit)
+    if v is None:
+        return "--"
     return f"{v:.{decimals}f}\u00b0"
 
 
-def fmt_clock(iso_str: str) -> str:
+def fmt_int(value: Any, suffix: str = "", placeholder: str = "--") -> str:
+    """Integer-ish formatting that never prints ``None``."""
+    v = num(value)
+    return placeholder if v is None else f"{v:.0f}{suffix}"
+
+
+def _parse_dt(value: Any) -> Optional[datetime]:
+    if not value:
+        return None
     try:
-        dt = datetime.fromisoformat(iso_str)
-        return dt.strftime("%H:%M")
-    except ValueError:
-        return iso_str or "--"
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+
+
+def fmt_clock(iso_str: Any) -> str:
+    dt = _parse_dt(iso_str)
+    return dt.strftime("%H:%M") if dt else "--"
+
+
+def fmt_day(value: Any, fmt: str = "%a") -> str:
+    """Parse an Open-Meteo daily date (``YYYY-MM-DD``) defensively."""
+    s = str(value or "")
+    for parser in (lambda: datetime.strptime(s[:10], "%Y-%m-%d"),
+                   lambda: _parse_dt(s)):
+        try:
+            dt = parser()
+        except (TypeError, ValueError):
+            dt = None
+        if dt:
+            return dt.strftime(fmt)
+    return s[:10] or "--"
 
 
 def local_now(tz_name: str) -> datetime:
@@ -396,11 +688,11 @@ def local_now(tz_name: str) -> datetime:
         return datetime.now(timezone.utc)
 
 
-def _align(now: datetime, *parsed: datetime) -> datetime:
+def _align(now: datetime, *parsed: Optional[datetime]) -> datetime:
     """Make `now` comparable with parsed timestamps (tz-aware or naive)."""
-    if not parsed:
+    target = next((p for p in parsed if p is not None), None)
+    if target is None:
         return now
-    target = parsed[0]
     if target.tzinfo is None and now.tzinfo is not None:
         return now.replace(tzinfo=None)
     if target.tzinfo is not None and now.tzinfo is None:
@@ -408,31 +700,28 @@ def _align(now: datetime, *parsed: datetime) -> datetime:
     return now
 
 
-def sun_progress(sunrise_iso: str, sunset_iso: str, now: datetime) -> Optional[float]:
-    """0..1 progress of daylight, or None if outside daylight."""
-    try:
-        rise = datetime.fromisoformat(sunrise_iso)
-        set_ = datetime.fromisoformat(sunset_iso)
-        now = _align(now, rise, set_)
-        if now < rise or now > set_:
-            return None
-        total = (set_ - rise).total_seconds()
-        if total <= 0:
-            return None
-        return max(0.0, min(1.0, (now - rise).total_seconds() / total))
-    except ValueError:
+def sun_progress(sunrise_iso: Any, sunset_iso: Any, now: datetime) -> Optional[float]:
+    """0..1 progress of daylight, or None if outside daylight / unknown."""
+    rise, set_ = _parse_dt(sunrise_iso), _parse_dt(sunset_iso)
+    if rise is None or set_ is None:
         return None
+    now = _align(now, rise, set_)
+    if now < rise or now > set_:
+        return None
+    total = (set_ - rise).total_seconds()
+    if total <= 0:
+        return None
+    return max(0.0, min(1.0, (now - rise).total_seconds() / total))
 
 
-def daylight_left(sunset_iso: str, now: datetime) -> str:
-    try:
-        set_ = datetime.fromisoformat(sunset_iso)
-        now = _align(now, set_)
-        delta = set_ - now
-        if delta.total_seconds() <= 0:
-            return "Daylight has ended"
-        mins = int(delta.total_seconds() // 60)
-        h, m = divmod(mins, 60)
-        return f"{h}h {m}m of daylight left"
-    except ValueError:
+def daylight_left(sunset_iso: Any, now: datetime) -> str:
+    set_ = _parse_dt(sunset_iso)
+    if set_ is None:
         return ""
+    now = _align(now, set_)
+    delta = set_ - now
+    if delta.total_seconds() <= 0:
+        return "Daylight has ended"
+    mins = int(delta.total_seconds() // 60)
+    h, m = divmod(mins, 60)
+    return f"{h}h {m}m of daylight left"
