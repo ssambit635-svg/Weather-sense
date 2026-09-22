@@ -22,9 +22,9 @@
   <a href="https://weather-sense-kutb55y3djjhmcbymj6wjh.streamlit.app"><img alt="Live demo" src="https://img.shields.io/badge/live%20demo-Streamlit%20Cloud-FF4B4B?logo=streamlit&logoColor=white&style=flat-square"></a>
   <img alt="Tests" src="https://img.shields.io/badge/tests-36%20passing-177A3C?style=flat-square">
   <img alt="Python" src="https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white&style=flat-square">
-  <img alt="Streamlit" src="https://img.shields.io/badge/streamlit-%E2%89%A5%201.37-FF4B4B?logo=streamlit&logoColor=white&style=flat-square">
+  <img alt="Streamlit" src="https://img.shields.io/badge/streamlit-1.37%2B-FF4B4B?logo=streamlit&logoColor=white&style=flat-square">
   <img alt="Data" src="https://img.shields.io/badge/data-Open--Meteo-5B8DEF?style=flat-square">
-  <img alt="Themes" src="https://img.shields.io/badge/theme-dark%20%2B%20light%20(cream%20%26%20beige)-DA8F07?style=flat-square">
+  <img alt="Themes" src="https://img.shields.io/badge/theme-dark%20%2B%20light%20(%20cream%20%26%20beige%20)-DA8F07?style=flat-square">
   <img alt="License" src="https://img.shields.io/badge/license-not%20set-8B97A8?style=flat-square">
 </p>
 
