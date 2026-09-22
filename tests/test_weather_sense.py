@@ -27,11 +27,17 @@ from streamlit.testing.v1 import AppTest  # noqa: E402
 from weather_sense import components as ui  # noqa: E402
 from weather_sense import sample  # noqa: E402
 from weather_sense.api import (  # noqa: E402
-    code_info, fmt_int, fmt_t, normalize_aqi, normalize_forecast, num, valid_place,
-    wind_dir_full, wind_dir_name,
+    FAMILY_STYLE, aqi_info, build_alerts, code_info, fmt_int, fmt_t, mosquito,
+    normalize_aqi, normalize_forecast, num, valid_place, wind_dir_full, wind_dir_name,
 )
 from weather_sense.compat import stretch  # noqa: E402
-from weather_sense.icons import LOGO_DATA_URI, LOGO_SVG, icon, logo_mark  # noqa: E402
+from weather_sense.icons import (  # noqa: E402
+    LOGO_DATA_URI, LOGO_SVG, icon, logo_mark, symbol_uri,
+)
+from weather_sense.styles import (  # noqa: E402
+    DARK, DEFAULT_ACCENT, LIGHT, accent_for, accent_soft, contrast_ratio,
+    current_theme, parse_hex, rgb_to_hsl, stylesheet, theme_css,
+)
 
 APP = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app.py")
 
@@ -157,6 +163,77 @@ class TestBrand(unittest.TestCase):
         self.assertNotIn("ws-dots", ready)        # dots stop once data landed
 
 
+class TestPalette(unittest.TestCase):
+    """The dark/light switch: tokens, accent tuning and the painted document."""
+
+    def test_light_is_cream_and_beige(self):
+        css = theme_css("light")
+        self.assertIn("#FAF6EE", css)          # cream canvas
+        self.assertIn("#F3EADC", css)          # beige elevation
+        self.assertIn(LIGHT["text"], css)      # warm ink, not navy/grey
+        self.assertIn("color-scheme: light", css)
+        self.assertNotIn("#0A0C10", css)       # no dark canvas left over
+
+    def test_dark_palette_is_unchanged(self):
+        css = theme_css("dark")
+        self.assertIn("#0A0C10", css)
+        self.assertIn("#EDEFF4", css)
+        self.assertIn("color-scheme: dark", css)
+
+    def test_unknown_theme_falls_back_to_dark(self):
+        self.assertIn("#0A0C10", theme_css("neon"))
+        self.assertEqual("dark", current_theme())
+
+    def test_light_swaps_accent_without_losing_the_hue(self):
+        seen = set()
+        for _label, accent in FAMILY_STYLE.values():
+            if accent in seen:
+                continue
+            seen.add(accent)
+            tuned = accent_for(accent, "light")
+            self.assertRegex(tuned, r"^#[0-9A-F]{6}$")
+            self.assertEqual(accent, accent_for(accent, "dark"), "dark is untouched")
+            # deep enough to read as a graphic on cream …
+            self.assertGreaterEqual(
+                contrast_ratio(parse_hex(tuned), parse_hex(LIGHT["bg"])), 3.5, accent
+            )
+            # … and the hue is preserved (a sunny amber stays amber)
+            hue_a = rgb_to_hsl(parse_hex(accent))
+            hue_b = rgb_to_hsl(parse_hex(tuned))
+            delta = abs(hue_a[0] - hue_b[0])
+            self.assertLess(min(delta, 1 - delta), 0.02, accent)
+
+    def test_palettes_expose_identical_tokens(self):
+        """A token defined for one palette but not the other is a latent bug."""
+        self.assertEqual(set(DARK), set(LIGHT))
+
+    def test_severity_colours_are_palette_references_not_hex(self):
+        """Alerts, AQI and insights must follow the theme, not freeze a hex."""
+        self.assertTrue(aqi_info(20)[1].startswith("var(--"))
+        self.assertTrue(aqi_info(320)[1].startswith("var(--"))
+        alerts = build_alerts("Rain", 41.0, 10.0, None, 10.0, "rain")
+        self.assertTrue(alerts and all(color.startswith("var(--") for _, _, color in alerts))
+        for _label, colour, _tip in (mosquito(28, 80), mosquito(5, 20)):
+            self.assertTrue(colour.startswith("var(--"), colour)
+
+    def test_condition_accents_stay_real_hex_for_tuning(self):
+        for _label, colour in FAMILY_STYLE.values():
+            self.assertRegex(colour, r"^#[0-9A-Fa-f]{6}$")
+
+    def test_garbage_accent_never_reaches_the_document(self):
+        self.assertEqual(DEFAULT_ACCENT, accent_for("not-a-colour", "light"))
+        self.assertEqual(DEFAULT_ACCENT, accent_for(None, "dark"))
+        self.assertIn("rgba", accent_soft("nope"))
+
+    def test_stylesheet_resolves_both_toggle_glyphs(self):
+        """The pill's sun/moon masks must be real data URIs, not placeholders."""
+        sheet = stylesheet()
+        self.assertNotIn("__ICON_", sheet)
+        self.assertIn(symbol_uri("sun"), sheet)
+        self.assertIn(symbol_uri("moon"), sheet)
+        self.assertIn("--ws-mode-icon", sheet)
+
+
 class TestCompat(unittest.TestCase):
     def test_stretch_returns_one_mechanism(self):
         kw = stretch()
@@ -210,12 +287,47 @@ class TestAppEndToEnd(unittest.TestCase):
         self.assertEqual("Tokyo", at.session_state["place"]["name"])
         self.assertEqual("Tokyo", at.session_state["city_input"])
 
-    def test_unit_toggle_switches_to_fahrenheit(self):
+    def test_unit_pill_switches_to_fahrenheit_and_back(self):
         at = self._run()
-        at.session_state["unit_seg"] = "°F"
-        at.run()
+        [b for b in at.button if b.label == "°C"][0].click().run()
         self.assertEqual("F", at.session_state["unit"])
         self.assertEqual([], [str(e.value) for e in at.exception])
+        [b for b in at.button if b.label == "°F"][0].click().run()
+        self.assertEqual("C", at.session_state["unit"])
+        self.assertEqual([], [str(e.value) for e in at.exception])
+
+    @staticmethod
+    def _palettes(at) -> str:
+        """The token blocks only (the big stylesheet mentions colours too)."""
+        return "\n".join(
+            str(m.value) for m in at.markdown
+            if str(m.value).lstrip().startswith("<style") and "color-scheme" in str(m.value)
+        )
+
+    def test_theme_pill_flips_the_palette_and_the_url(self):
+        at = self._run()
+        self.assertEqual("dark", at.session_state["theme"])
+        self.assertIn("#0A0C10", self._palettes(at))
+
+        [b for b in at.button if b.label == "Light mode"][0].click().run()
+        self.assertEqual([], [str(e.value) for e in at.exception])
+        self.assertEqual("light", at.session_state["theme"])
+        self.assertIn("light", at.query_params.get("theme", ""))
+        self.assertIn("#FAF6EE", self._palettes(at))          # cream, painted
+        self.assertIn("#F3EADC", self._palettes(at))          # beige, painted
+
+        [b for b in at.button if b.label == "Dark mode"][0].click().run()
+        self.assertEqual([], [str(e.value) for e in at.exception])
+        self.assertEqual("dark", at.session_state["theme"])
+        self.assertNotIn("theme", at.query_params)            # default stays clean
+        self.assertIn("#0A0C10", self._palettes(at))
+
+    def test_theme_query_param_bootstraps_light(self):
+        at = self._run(theme="light")
+        self.assertEqual([], [str(e.value) for e in at.exception])
+        self.assertEqual("light", at.session_state["theme"])
+        self.assertIn("#FAF6EE", self._palettes(at))
+        self.assertTrue(any(b.label == "Dark mode" for b in at.button))
 
     def test_favorites_round_trip(self):
         at = self._run()

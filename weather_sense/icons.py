@@ -31,6 +31,7 @@ _UI = {
     "eye": '<path d="M2.5 12S6 6.5 12 6.5 21.5 12 21.5 12 18 17.5 12 17.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="2.6"/>',
     "wind": '<path d="M4 8.5h9.5a2.75 2.75 0 1 0-2.6-3.6M4 12.5h14a2.75 2.75 0 1 1-2.6 3.6M4 16.5h6"/>',
     "sun": '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.2M12 19.3v2.2M4.9 4.9l1.6 1.6M17.5 17.5l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.9 19.1l1.6-1.6M17.5 6.5l1.6-1.6"/>',
+    "moon": '<path d="M20.8 14.1A8.7 8.7 0 0 1 9.9 3.2a8.7 8.7 0 1 0 10.9 10.9Z"/>',
     "uv": '<circle cx="12" cy="12" r="3.6"/><path d="M12 3v2M12 19v2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M3 12h2M19 12h2M5.6 18.4 7 17M17 7l1.4-1.4"/>',
     "umbrella": '<path d="M12 4a8 8 0 0 1 8 7.5H4A8 8 0 0 1 12 4Z"/><path d="M12 11.5V17a2.2 2.2 0 0 0 4.4 0"/>',
     "arrow-up": '<path d="M12 19V5M6.5 10.5 12 5l5.5 5.5"/>',
@@ -190,10 +191,14 @@ _GRAD_TO = "#4F8CF7"
 
 
 def _logo_gradient(uid: str) -> str:
+    """Brand gradient. The stops carry solid fallbacks *and* classes, so the
+    stylesheet can re-tune the brand for a light background (three stops deep,
+    it is the one glyph that must not wash out on cream)."""
     return (
         f'<defs><linearGradient id="wslogo-{uid}" x1="3" y1="3" x2="21" y2="20" '
         f'gradientUnits="userSpaceOnUse">'
-        f'<stop stop-color="{_GRAD_FROM}"/><stop offset="1" stop-color="{_GRAD_TO}"/>'
+        f'<stop class="ws-stop-from" stop-color="{_GRAD_FROM}"/>'
+        f'<stop class="ws-stop-to" offset="1" stop-color="{_GRAD_TO}"/>'
         f"</linearGradient></defs>"
     )
 
@@ -256,6 +261,24 @@ def logo_tile(size: int = 32, uid: str = "t", animated: bool = False) -> str:
 
 def _data_uri(svg: str) -> str:
     return "data:image/svg+xml," + quote(svg, safe="")
+
+
+def symbol_uri(name: str, stroke: float = 1.9) -> str:
+    """A UI icon as an alpha-mask data URI, for use in CSS ``mask-image``.
+
+    Used by the theme switch, whose sun/moon glyph has to inherit
+    ``currentColor`` from the button it sits in — something an inline ``<svg>``
+    label can't do inside a Streamlit button.
+    """
+    body = _UI.get(name)
+    if body is None:
+        return ""
+    svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" '
+        f'stroke="#000" stroke-width="{stroke}" stroke-linecap="round" '
+        f'stroke-linejoin="round">{body}</svg>'
+    )
+    return _data_uri(svg)
 
 
 # Header mark, standalone mark and favicon — all the same drawing.

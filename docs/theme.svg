@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="460" viewBox="0 0 1200 460" role="img" aria-label="WeatherSense dark and light palettes side by side">
+  <title>WeatherSense — one component tree, two palettes</title>
+  <desc>The same dashboard surface rendered from the dark night tokens and from the light cream and beige tokens, with the theme pill and the exact colour tokens of each palette.</desc>
+
+  <defs>
+    <linearGradient id="wsAccentDark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#9FB4CC"/>
+      <stop offset="1" stop-color="#5B8DEF"/>
+    </linearGradient>
+    <linearGradient id="wsAccentLight" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#50739B"/>
+      <stop offset="1" stop-color="#1054DB"/>
+    </linearGradient>
+  </defs>
+
+  <!-- ───────────────────────── dark: night canvas ───────────────────────── -->
+  <rect x="0" y="0" width="594" height="460" rx="22" fill="#0A0C10"/>
+  <rect x="0.5" y="0.5" width="593" height="459" rx="21.5" fill="none" stroke="#FFFFFF" stroke-opacity="0.10"/>
+  <rect x="36" y="72" width="522" height="316" rx="18" fill="#12151C" stroke="#FFFFFF" stroke-opacity="0.075"/>
+  <rect x="60" y="264" width="228" height="74" rx="12" fill="none" stroke="#FFFFFF" stroke-opacity="0.075"/>
+  <rect x="300" y="264" width="228" height="74" rx="12" fill="none" stroke="#FFFFFF" stroke-opacity="0.075"/>
+
+  <text x="36" y="44" fill="#EDEFF4" fill-opacity="0.45" font-family="Inter, Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="600" letter-spacing="3.2">DARK · NIGHT CANVAS</text>
+  <text x="72" y="172" fill="#EDEFF4" font-family="Space Grotesk, Inter, Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="76" font-weight="600" letter-spacing="-3">23°</text>
+  <text x="74" y="210" fill="#9FB4CC" font-family="Inter, Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="15" font-weight="600">Partly cloudy</text>
+  <text x="74" y="234" fill="#EDEFF4" fill-opacity="0.62" font-family="Inter, Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="12.5" font-weight="500">Oslo, Norway</text>
+
+  <g font-family="Inter, Segoe UI, Helvetica Neue, Arial, sans-serif">
+    <text x="78" y="292" fill="#EDEFF4" fill-opacity="0.38" font-size="9.5" font-weight="600" letter-spacing="1.6">HUMIDITY</text>
+    <text x="78" y="320" fill="#EDEFF4" font-size="20" font-weight="600">62%</text>
+    <text x="318" y="292" fill="#EDEFF4" fill-opacity="0.38" font-size="9.5" font-weight="600" letter-spacing="1.6">WIND</text>
+    <text x="318" y="320" fill="#EDEFF4" font-size="20" font-weight="600">11 km/h</text>
+  </g>
+
+  <!-- the theme pill, dark state: click to go light -->
+  <rect x="416" y="92" width="118" height="32" rx="16" fill="#171B24" stroke="#FFFFFF" stroke-opacity="0.13"/>
+  <g transform="translate(430 101) scale(0.55)" fill="none" stroke="#EDEFF4" stroke-opacity="0.8" stroke-width="3.45" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="12" r="4"/>
+    <path d="M12 2.5v2.2M12 19.3v2.2M4.9 4.9l1.6 1.6M17.5 17.5l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.9 19.1l1.6-1.6M17.5 6.5l1.6-1.6"/>
+  </g>
+  <text x="453" y="112" fill="#EDEFF4" fill-opacity="0.70" font-family="Inter, Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="600">Light mode</text>
+
+  <g font-family="Inter, Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="11" font-weight="600">
+    <rect x="36" y="406" width="20" height="20" rx="6" fill="#0A0C10" stroke="#FFFFFF" stroke-opacity="0.14"/>
+    <text x="64" y="420" fill="#EDEFF4" fill-opacity="0.62">bg #0A0C10</text>
+    <rect x="152" y="406" width="20" height="20" rx="6" fill="#12151C" stroke="#FFFFFF" stroke-opacity="0.14"/>
+    <text x="180" y="420" fill="#EDEFF4" fill-opacity="0.62">card #12151C</text>
+    <rect x="288" y="406" width="20" height="20" rx="6" fill="#171B24" stroke="#FFFFFF" stroke-opacity="0.14"/>
+    <text x="316" y="420" fill="#EDEFF4" fill-opacity="0.62">hi #171B24</text>
+    <rect x="408" y="406" width="20" height="20" rx="6" fill="#EDEFF4"/>
+    <text x="436" y="420" fill="#EDEFF4" fill-opacity="0.62">ink #EDEFF4</text>
+    <rect x="36" y="436" width="20" height="20" rx="6" fill="url(#wsAccentDark)"/>
+    <text x="64" y="451" fill="#EDEFF4" fill-opacity="0.62">condition accent, used as authored</text>
+  </g>
+
+  <!-- ────────────────────── light: cream + beige ────────────────────── -->
+  <rect x="606" y="0" width="594" height="460" rx="22" fill="#FAF6EE"/>
+  <rect x="606.5" y="0.5" width="593" height="459" rx="21.5" fill="none" stroke="#4A3A24" stroke-opacity="0.16"/>
+  <rect x="642" y="72" width="522" height="316" rx="18" fill="#FFFCF6" stroke="#4A3A24" stroke-opacity="0.14"/>
+  <rect x="666" y="264" width="228" height="74" rx="12" fill="#F7EFE1" stroke="#4A3A24" stroke-opacity="0.12"/>
+  <rect x="906" y="264" width="228" height="74" rx="12" fill="#F7EFE1" stroke="#4A3A24" stroke-opacity="0.12"/>
+
+  <text x="642" y="44" fill="#241E15" fill-opacity="0.55" font-family="Inter, Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="600" letter-spacing="3.2">LIGHT · CREAM &amp; BEIGE</text>
+  <text x="678" y="172" fill="#241E15" font-family="Space Grotesk, Inter, Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="76" font-weight="600" letter-spacing="-3">23°</text>
+  <text x="680" y="210" fill="#50739B" font-family="Inter, Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="15" font-weight="600">Partly cloudy</text>
+  <text x="680" y="234" fill="#241E15" fill-opacity="0.66" font-family="Inter, Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="12.5" font-weight="500">Oslo, Norway</text>
+
+  <g font-family="Inter, Segoe UI, Helvetica Neue, Arial, sans-serif">
+    <text x="684" y="292" fill="#241E15" fill-opacity="0.50" font-size="9.5" font-weight="600" letter-spacing="1.6">HUMIDITY</text>
+    <text x="684" y="320" fill="#241E15" font-size="20" font-weight="600">62%</text>
+    <text x="924" y="292" fill="#241E15" fill-opacity="0.50" font-size="9.5" font-weight="600" letter-spacing="1.6">WIND</text>
+    <text x="924" y="320" fill="#241E15" font-size="20" font-weight="600">11 km/h</text>
+  </g>
+
+  <!-- the theme pill, light state: click to go back to night -->
+  <rect x="1022" y="92" width="118" height="32" rx="16" fill="#F7EFE1" stroke="#4A3A24" stroke-opacity="0.20"/>
+  <g transform="translate(1036 101) scale(0.55)" fill="none" stroke="#241E15" stroke-opacity="0.8" stroke-width="3.45" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M20.8 14.1A8.7 8.7 0 0 1 9.9 3.2a8.7 8.7 0 1 0 10.9 10.9Z"/>
+  </g>
+  <text x="1059" y="112" fill="#241E15" fill-opacity="0.75" font-family="Inter, Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="600">Dark mode</text>
+
+  <g font-family="Inter, Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="11" font-weight="600">
+    <rect x="642" y="406" width="20" height="20" rx="6" fill="#FAF6EE" stroke="#4A3A24" stroke-opacity="0.26"/>
+    <text x="670" y="420" fill="#241E15" fill-opacity="0.66">cream #FAF6EE</text>
+    <rect x="766" y="406" width="20" height="20" rx="6" fill="#F3EADC" stroke="#4A3A24" stroke-opacity="0.20"/>
+    <text x="794" y="420" fill="#241E15" fill-opacity="0.66">beige #F3EADC</text>
+    <rect x="906" y="406" width="20" height="20" rx="6" fill="#FFFCF6" stroke="#4A3A24" stroke-opacity="0.20"/>
+    <text x="934" y="420" fill="#241E15" fill-opacity="0.66">paper #FFFCF6</text>
+    <rect x="1014" y="406" width="20" height="20" rx="6" fill="#241E15"/>
+    <text x="1042" y="420" fill="#241E15" fill-opacity="0.66">ink #241E15</text>
+    <rect x="642" y="436" width="20" height="20" rx="6" fill="url(#wsAccentLight)"/>
+    <text x="670" y="451" fill="#241E15" fill-opacity="0.66">same accent, walked deeper for cream: #50739B</text>
+  </g>
+</svg>

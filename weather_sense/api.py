@@ -87,7 +87,10 @@ _CODES: dict[int, tuple[str, str]] = {
     99: ("Thunderstorm with heavy hail", "hail"),
 }
 
-# Condition family -> (label family key, accent color)
+# Condition family -> (label, accent). These stay *real hex*: the accent is the
+# one colour the palette re-tunes at paint time (styles.accent_for walks it down
+# in lightness until it reads on cream), and severity colours elsewhere in this
+# module are CSS var() references so alerts, AQI and insights follow the theme.
 FAMILY_STYLE: dict[str, tuple[str, str]] = {
     "clear": ("Clear sky", "#F5B94C"),
     "mostly": ("Mainly clear", "#E8C56B"),
@@ -502,50 +505,50 @@ def aqi_info(aqi: Optional[float]) -> tuple[str, str, float, str]:
     """Return (label, color, bar percent, advice)."""
     a = num(aqi)
     if a is None:
-        return "Unavailable", "#8B97A8", 0, "Air quality data unavailable right now."
+        return "Unavailable", "var(--neutral)", 0, "Air quality data unavailable right now."
     if a <= 50:
-        return "Good", "#34C759", 8, "Air is clean — enjoy outdoor activities."
+        return "Good", "var(--good)", 8, "Air is clean — enjoy outdoor activities."
     if a <= 100:
-        return "Moderate", "#E5B83E", 24, "Acceptable; unusually sensitive people should take it easy."
+        return "Moderate", "var(--warn)", 24, "Acceptable; unusually sensitive people should take it easy."
     if a <= 150:
-        return "Unhealthy for sensitive groups", "#F08C2E", 41, "Sensitive groups should reduce intense outdoor activity."
+        return "Unhealthy for sensitive groups", "var(--warn-soft)", 41, "Sensitive groups should reduce intense outdoor activity."
     if a <= 200:
-        return "Unhealthy", "#EF5B5B", 58, "Everyone may begin to feel effects — limit time outdoors."
+        return "Unhealthy", "var(--bad)", 58, "Everyone may begin to feel effects — limit time outdoors."
     if a <= 300:
-        return "Very unhealthy", "#A45BF0", 76, "Health alert — avoid outdoor activity if you can."
-    return "Hazardous", "#8B4BF0", 94, "Emergency conditions — stay indoors."
+        return "Very unhealthy", "var(--purple)", 76, "Health alert — avoid outdoor activity if you can."
+    return "Hazardous", "var(--purple-deep)", 94, "Emergency conditions — stay indoors."
 
 
 def stargazing(cloud: Any, aqi: Optional[float], family_key: str) -> tuple[int, str, str, str]:
     if family_key in ("rain", "heavy-rain", "snow", "thunder", "hail", "sleet", "fog", "drizzle"):
-        return 0, "Not tonight", "#EF5B5B", "Cloud cover and precipitation block the sky."
+        return 0, "Not tonight", "var(--bad)", "Cloud cover and precipitation block the sky."
     c = num_or(cloud, 50)
     a = num(aqi)
     score = max(0, min(100, int(100 - c - (min(a / 5.0, 30) if a is not None else 0))))
     if score >= 75:
-        return score, "Excellent", "#34C759", "Clear and dark — ideal for stargazing."
+        return score, "Excellent", "var(--good)", "Clear and dark — ideal for stargazing."
     if score >= 50:
-        return score, "Good", "#7BC96F", "Most stars will be visible between clouds."
+        return score, "Good", "var(--good-soft)", "Most stars will be visible between clouds."
     if score >= 25:
-        return score, "Fair", "#E5B83E", "Broken clouds — bright objects only."
-    return score, "Poor", "#EF5B5B", "Too cloudy to see much tonight."
+        return score, "Fair", "var(--warn)", "Broken clouds — bright objects only."
+    return score, "Poor", "var(--bad)", "Too cloudy to see much tonight."
 
 
 def mosquito(temp: Any, humidity: Any) -> tuple[str, str, str]:
     t, h = num_or(temp, 15), num_or(humidity, 50)
     if t >= 25 and h >= 70:
-        return "High", "#EF5B5B", "Warm and humid — peak activity. Use repellent after sunset."
+        return "High", "var(--bad)", "Warm and humid — peak activity. Use repellent after sunset."
     if t >= 20 and h >= 55:
-        return "Moderate", "#F08C2E", "Some activity in the evening. Take standard precautions."
-    return "Low", "#34C759", "Conditions are unfavourable for mosquitoes."
+        return "Moderate", "var(--warn-soft)", "Some activity in the evening. Take standard precautions."
+    return "Low", "var(--good)", "Conditions are unfavourable for mosquitoes."
 
 
 def outdoor_score(temp: Any, wind: Any, aqi: Optional[float], family: str) -> tuple[int, str, str, str]:
     if family in ("thunder", "hail"):
-        return 0, "Dangerous", "#EF5B5B", "Severe weather — stay indoors."
+        return 0, "Dangerous", "var(--bad)", "Severe weather — stay indoors."
     t = num(temp)
     if t is None:
-        return 50, "Unknown", "#8B97A8", "Not enough live data to score the outdoors."
+        return 50, "Unknown", "var(--neutral)", "Not enough live data to score the outdoors."
     w = num_or(wind, 0)
     a = num(aqi)
     score = 100
@@ -574,14 +577,14 @@ def outdoor_score(temp: Any, wind: Any, aqi: Optional[float], family: str) -> tu
         score -= 15
     score = max(0, min(100, score))
     if score >= 75:
-        return score, "Great", "#34C759", "Excellent conditions — go for it."
+        return score, "Great", "var(--good)", "Excellent conditions — go for it."
     if score >= 55:
-        return score, "Good", "#7BC96F", "Solid window for training. Stay hydrated."
+        return score, "Good", "var(--good-soft)", "Solid window for training. Stay hydrated."
     if score >= 35:
-        return score, "Moderate", "#E5B83E", "Workable — keep sessions short."
+        return score, "Moderate", "var(--warn)", "Workable — keep sessions short."
     if score >= 15:
-        return score, "Poor", "#F08C2E", "Tough conditions — consider rescheduling."
-    return score, "Avoid", "#EF5B5B", "Not recommended right now."
+        return score, "Poor", "var(--warn-soft)", "Tough conditions — consider rescheduling."
+    return score, "Avoid", "var(--bad)", "Not recommended right now."
 
 
 def build_alerts(label: str, temp: Any, wind: Any, aqi: Optional[float],
@@ -595,36 +598,37 @@ def build_alerts(label: str, temp: Any, wind: Any, aqi: Optional[float],
         if t >= 40:
             alerts.append(("Extreme heat warning",
                            f"{t:.0f}\u00b0C is dangerous. Stay hydrated, avoid direct sun.",
-                           "#EF5B5B"))
+                           "var(--bad)"))
         elif t >= 35:
             alerts.append(("Heat advisory",
-                           f"{t:.0f}\u00b0C — limit prolonged outdoor exposure.", "#F08C2E"))
+                           f"{t:.0f}\u00b0C — limit prolonged outdoor exposure.", "var(--warn-soft)"))
         if t <= 0:
             alerts.append(("Freezing conditions",
-                           f"{t:.0f}\u00b0C — frostbite risk on exposed skin.", "#6EA8FE"))
+                           f"{t:.0f}\u00b0C — frostbite risk on exposed skin.", "var(--precip)"))
     if family == "thunder":
         alerts.append(("Thunderstorm",
-                       "Avoid open ground, water and metal objects.", "#8B7CF6"))
+                       "Avoid open ground, water and metal objects.", "var(--violet)"))
     if family == "snow" and max(w, g) > 40:
         alerts.append(("Blizzard conditions",
                        f"Snow with {max(w, g):.0f} km/h gusts — travel not advised.",
-                       "#5B8DEF"))
+                       "var(--accent)"))
     if g > 70:
         alerts.append(("High wind gusts",
-                       f"Gusts to {g:.0f} km/h — secure loose objects.", "#EF5B5B"))
+                       f"Gusts to {g:.0f} km/h — secure loose objects.", "var(--bad)"))
     elif w > 50:
         alerts.append(("Strong wind",
-                       f"{w:.0f} km/h sustained. Take care outdoors.", "#F08C2E"))
+                       f"{w:.0f} km/h sustained. Take care outdoors.", "var(--warn-soft)"))
     if a is not None:
         if a > 200:
             alerts.append(("Unhealthy air quality",
-                           f"US AQI {a:.0f} — wear a mask outdoors, keep windows shut.", "#A45BF0"))
+                           f"US AQI {a:.0f} — wear a mask outdoors, keep windows shut.", "var(--purple)"))
         elif a > 150:
             alerts.append(("Poor air quality",
-                           f"US AQI {a:.0f} — sensitive groups should stay indoors.", "#F08C2E"))
+                           f"US AQI {a:.0f} — sensitive groups should stay indoors.", "var(--warn-soft)"))
     if family == "fog":
         alerts.append(("Dense fog",
-                       "Greatly reduced visibility — drive slowly with low beams.", "#9AA3B2"))
+                       "Greatly reduced visibility — drive slowly with low beams.",
+                       "var(--neutral)"))
     return alerts
 
 

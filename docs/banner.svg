@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="400" viewBox="0 0 1600 400" role="img" aria-label="WeatherSense — live weather, distilled">
+  <title>WeatherSense — live weather, distilled</title>
+  <desc>Banner for the WeatherSense README: the sky-loop brand mark, the wordmark, the dark/light mode pills and a row of eight hand-drawn weather glyphs.</desc>
+
+  <defs>
+    <linearGradient id="wsMark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8CC4FF"/>
+      <stop offset="1" stop-color="#4F8CF7"/>
+    </linearGradient>
+    <linearGradient id="wsCanvas" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#141922"/>
+      <stop offset="1" stop-color="#0D1015"/>
+    </linearGradient>
+    <linearGradient id="wsHair" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.10"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0.02"/>
+    </linearGradient>
+  </defs>
+
+  <!-- canvas -->
+  <rect width="1600" height="400" fill="url(#wsCanvas)"/>
+  <rect x="0.5" y="0.5" width="1599" height="399" fill="none" stroke="#FFFFFF" stroke-opacity="0.08"/>
+
+  <!-- ── brand mark: one cloud stroke with a sun breaking out above it ── -->
+  <g transform="translate(76 132) scale(6)" fill="none" stroke="url(#wsMark)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="18.6" cy="7.2" r="2.4"/>
+    <path d="M18.6 4.18V2.78M16.46 5.06l-.99-.99M20.74 5.06l.99-.99"/>
+    <path d="M4.656 19.656h11.136a3.456 3.456 0 0 0 0.384 -6.864a4.896 4.896 0 0 0 -9.456 -1.632a3.744 3.744 0 0 0 -2.064 8.496Z"/>
+  </g>
+
+  <text x="252" y="202" fill="#EDEFF4" font-family="Space Grotesk, Inter, Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="84" font-weight="700" letter-spacing="-2.6">WeatherSense</text>
+  <text x="256" y="242" fill="#EDEFF4" fill-opacity="0.44" font-family="Inter, Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="14" font-weight="600" letter-spacing="5.4">LIVE WEATHER · DISTILLED</text>
+  <rect x="256" y="262" width="72" height="3" rx="1.5" fill="#5B8DEF"/>
+
+  <!-- ── the two view settings, as they appear in the app ── -->
+  <g font-family="Inter, Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="13" font-weight="600">
+    <rect x="1258" y="42" width="126" height="36" rx="18" fill="#171B24" stroke="#FFFFFF" stroke-opacity="0.13"/>
+    <g transform="translate(1274 52) scale(0.667)" fill="none" stroke="#EDEFF4" stroke-opacity="0.82" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M20.8 14.1A8.7 8.7 0 0 1 9.9 3.2a8.7 8.7 0 1 0 10.9 10.9Z"/>
+    </g>
+    <text x="1298" y="65" fill="#EDEFF4" fill-opacity="0.78">Dark mode</text>
+
+    <rect x="1398" y="42" width="126" height="36" rx="18" fill="#FAF6EE" stroke="#4A3A24" stroke-opacity="0.18"/>
+    <g transform="translate(1414 52) scale(0.667)" fill="none" stroke="#241E15" stroke-opacity="0.8" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="4"/>
+      <path d="M12 2.5v2.2M12 19.3v2.2M4.9 4.9l1.6 1.6M17.5 17.5l1.6 1.6M2.5 12h2.2M19.3 12h2.2M4.9 19.1l1.6-1.6M17.5 6.5l1.6-1.6"/>
+    </g>
+    <text x="1438" y="65" fill="#241E15" fill-opacity="0.8">Light mode</text>
+  </g>
+
+  <!-- ── glyph row: every icon a purpose-drawn stroke, no emoji ── -->
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="864" y="168" width="72" height="72" rx="20" fill="#171B24" stroke="#FFFFFF" stroke-opacity="0.07"/>
+    <rect x="948" y="168" width="72" height="72" rx="20" fill="#171B24" stroke="#FFFFFF" stroke-opacity="0.07"/>
+    <rect x="1032" y="168" width="72" height="72" rx="20" fill="#171B24" stroke="#FFFFFF" stroke-opacity="0.07"/>
+    <rect x="1116" y="168" width="72" height="72" rx="20" fill="#171B24" stroke="#FFFFFF" stroke-opacity="0.07"/>
+    <rect x="1200" y="168" width="72" height="72" rx="20" fill="#171B24" stroke="#FFFFFF" stroke-opacity="0.07"/>
+    <rect x="1284" y="168" width="72" height="72" rx="20" fill="#171B24" stroke="#FFFFFF" stroke-opacity="0.07"/>
+    <rect x="1368" y="168" width="72" height="72" rx="20" fill="#171B24" stroke="#FFFFFF" stroke-opacity="0.07"/>
+    <rect x="1452" y="168" width="72" height="72" rx="20" fill="#171B24" stroke="#FFFFFF" stroke-opacity="0.07"/>
+
+    <!-- partly cloudy — the condition accent -->
+    <g transform="translate(888 192) scale(1.0)" stroke="#5B8DEF" stroke-width="1.7">
+      <circle cx="15" cy="8" r="3.6"/>
+      <path d="M15 1.8v1.7M8.8 8H7.2M20.8 8h-1.6M10.6 3.4l1.2 1.2"/>
+      <path d="M5.420 17.920h11.020a3.420 3.420 0 0 0 0.380 -6.793a4.845 4.845 0 0 0 -9.357 -1.669a3.705 3.705 0 0 0 -2.043 8.462Z"/>
+    </g>
+    <g transform="translate(972 192) scale(1.0)" stroke="#EDEFF4" stroke-opacity="0.5" stroke-width="1.7">
+      <path d="M5.600 15.100h11.600a3.600 3.600 0 0 0 0.400 -7.150a5.100 5.100 0 0 0 -9.850 -1.700a3.900 3.900 0 0 0 -2.150 8.850Z"/>
+      <path d="M9 16.5v2.6M12 17v3.4M15 16.5v2.6"/>
+    </g>
+    <g transform="translate(1056 192) scale(1.0)" stroke="#EDEFF4" stroke-opacity="0.5" stroke-width="1.7">
+      <path d="M20.5 13.5A8.5 8.5 0 1 1 10.5 3.5a7 7 0 1 0 10 10Z"/>
+    </g>
+    <g transform="translate(1140 192) scale(1.0)" stroke="#EDEFF4" stroke-opacity="0.5" stroke-width="1.7">
+      <path d="M5.600 15.100h11.600a3.600 3.600 0 0 0 0.400 -7.150a5.100 5.100 0 0 0 -9.850 -1.700a3.900 3.900 0 0 0 -2.150 8.850Z"/>
+      <path d="M9 17.4h.01M12 18.4h.01M15 17.4h.01M10.5 20.2h.01M13.5 21.6h.01"/>
+    </g>
+    <g transform="translate(1224 192) scale(1.0)" stroke="#EDEFF4" stroke-opacity="0.5" stroke-width="1.7">
+      <path d="M5.280 14.780h12.180a3.780 3.780 0 0 0 0.420 -7.508a5.355 5.355 0 0 0 -10.342 -1.785a4.095 4.095 0 0 0 -2.257 9.293Z"/>
+      <path d="m12.6 15.5 3.6 0-2.7 3.5h2.3l-4.2 4.8 1.3-3.4-3.1 0"/>
+    </g>
+    <g transform="translate(1308 192) scale(1.0)" stroke="#EDEFF4" stroke-opacity="0.5" stroke-width="1.7">
+      <path d="M4 8.5h9.5a2.75 2.75 0 1 0-2.6-3.6M4 12.5h14a2.75 2.75 0 1 1-2.6 3.6M4 16.5h6"/>
+    </g>
+    <g transform="translate(1392 192) scale(1.0)" stroke="#EDEFF4" stroke-opacity="0.5" stroke-width="1.7">
+      <path d="M12 3.5s5.5 5.7 5.5 9.6a5.5 5.5 0 1 1-11 0C6.5 9.2 12 3.5 12 3.5Z"/>
+    </g>
+    <g transform="translate(1476 192) scale(1.0)" stroke="#EDEFF4" stroke-opacity="0.5" stroke-width="1.7">
+      <circle cx="12" cy="12" r="3.6"/>
+      <path d="M12 3v2M12 19v2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M3 12h2M19 12h2M5.6 18.4 7 17M17 7l1.4-1.4"/>
+    </g>
+  </g>
+
+  <!-- ── hairline footer ── -->
+  <rect x="76" y="316" width="1448" height="1" fill="url(#wsHair)"/>
+  <g font-family="Inter, Segoe UI, Helvetica Neue, Arial, sans-serif" font-size="12.5" font-weight="500">
+    <text x="76" y="348" fill="#EDEFF4" fill-opacity="0.34">Open-Meteo data · no API key · offline-first</text>
+    <text x="800" y="348" fill="#EDEFF4" fill-opacity="0.34" text-anchor="middle">Dark &amp; light, from one token map — cream + beige</text>
+    <text x="1524" y="348" fill="#EDEFF4" fill-opacity="0.34" text-anchor="end">Python 3 · Streamlit</text>
+  </g>
+</svg>

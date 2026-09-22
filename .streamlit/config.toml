@@ -21,6 +21,10 @@ fileWatcherType = "auto"
 gatherUsageStats = false
 # leave serverAddress unset so the app is reachable through any proxy host
 
+# Pre-paint default only. WeatherSense paints its own palette from token maps at
+# runtime (weather_sense/styles.py), so the in-app Dark/Light pill switches the
+# theme without touching this file — it just decides the colour of the very first
+# frame, before Python has run.
 [theme]
 base = "dark"
 primaryColor = "#5B8DEF"

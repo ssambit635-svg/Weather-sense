@@ -2,10 +2,11 @@
 
 Structure of a run:
 
-1. paint the intro card (logo draws itself, loader spins) — first paint is
-   instant because it happens before any network call;
+1. paint the palette (``?theme=`` -> session -> dark) and the intro card — the
+   first paint is instant because it happens before any network call;
 2. bootstrap the active city (``?city=`` param -> IP geolocation -> default);
-3. render the shell (header clock, unit switch, offline notice) and search;
+3. render the shell (header clock, unit + theme pills, offline notice) and
+   search;
 4. fade the intro card out and render the live dashboard fragment.
 
 Everything is wrapped in an error boundary at the bottom of this file, so a
@@ -30,7 +31,7 @@ from weather_sense.compat import (
     version_ok,
 )
 from weather_sense.icons import LOGO_DATA_URI, icon
-from weather_sense.styles import inject, set_accent
+from weather_sense.styles import DEFAULT_THEME, THEMES, apply_theme, inject, set_accent
 
 # The intro card holds long enough for the logo to finish drawing itself.
 MIN_SPLASH_SECONDS = 1.15
@@ -51,6 +52,12 @@ ss.setdefault("unit", "C")
 ss.setdefault("favorites", [])       # list[place dicts]
 ss.setdefault("place", None)         # active place
 ss.setdefault("pending_hits", None)  # alternate geocode results
+
+# palette: ?theme= wins (shareable), then the session choice, then dark
+_q_theme = str(st.query_params.get("theme") or "").lower()
+if _q_theme in THEMES:
+    ss["theme"] = _q_theme
+ss.setdefault("theme", DEFAULT_THEME)
 
 
 def persist_city(place: dict) -> None:
@@ -129,7 +136,7 @@ def render_shell(place: Optional[dict], bundle: Optional[dict]) -> None:
         ui.header(lt, tl, is_offline)
 
     topbar()
-    ui.unit_toggle()
+    ui.controls_row()
 
     if offline:
         st.markdown(
@@ -317,6 +324,7 @@ def _dashboard(place: dict, unit: str) -> None:
 
 def main() -> None:
     inject()
+    apply_theme()            # palette + condition accent, before anything paints
 
     # -- unsupported Streamlit: say so instead of dying on an AttributeError --
     if not version_ok():
@@ -404,6 +412,7 @@ except Exception as exc:             # pragma: no cover - safety net
     if "booted" in ss:
         del ss["booted"]
     inject()
+    apply_theme()
     ui.fatal(
         "WeatherSense hit an unexpected error",
         "This run could not be completed. Caches were cleared — retry now, or "

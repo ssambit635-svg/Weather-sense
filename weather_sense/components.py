@@ -17,8 +17,9 @@ from weather_sense.api import (
     fmt_t, local_now, mosquito, num, num_or, outdoor_score, stargazing,
     sun_progress, to_unit, wind_dir_full, wind_dir_name,
 )
-from weather_sense.compat import has
+from weather_sense.compat import stretch
 from weather_sense.icons import LOGO_SVG, icon, logo_mark, weather_icon
+from weather_sense.styles import DEFAULT_THEME, current_theme
 
 # ---------------------------------------------------------------------------
 # helpers
@@ -158,44 +159,69 @@ def header(local_time: str = "", tz_label: str = "", offline: bool = False) -> N
     )
 
 
+def _anchor(kind: str) -> None:
+    """Invisible hook the stylesheet keys off (``:has(.ws-anchor)``).
+
+    Streamlit gives us no class on a widget wrapper and its DOM changes between
+    releases, so the pills are styled by *containing* one of these spans — which
+    works on every version, and degrades to a plain button if a browser has no
+    ``:has()`` support.
+    """
+    st.markdown(f'<span class="ws-anchor {kind}"></span>', unsafe_allow_html=True)
+
+
 def unit_toggle() -> None:
-    """Celsius / Fahrenheit switch, with a fallback for older Streamlit."""
+    """Celsius ⇄ Fahrenheit pill (session-state backed)."""
     unit = st.session_state.get("unit", "C")
-    st.markdown(
-        """
-        <style>
-        div[data-testid="stSegmentedControl"] { align-self: flex-end; }
-        div[data-testid="stSegmentedControl"] button {
-          height: 34px !important; min-height: 34px !important;
-          font-size: .76rem !important; font-weight: 600 !important;
-          padding: 0 14px !important;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-    _, right = st.columns([5.2, 1])
-    options = ["°C", "°F"]
-    choice: Any = None
-    with right:
-        if has("segmented_control"):
-            choice = st.segmented_control(
-                "Unit", options=options, default=f"°{unit}",
-                selection_mode="single", label_visibility="collapsed", key="unit_seg",
-            )
-        else:  # Streamlit < 1.40
-            choice = st.radio(
-                "Unit", options=options, index=options.index(f"°{unit}"),
-                label_visibility="collapsed", key="unit_seg", horizontal=True,
-            )
-    # `segmented_control` returns the option itself, `radio` the same — but be
-    # defensive: accept "°C", "C" or ["°C"].
-    picked = choice[0] if isinstance(choice, (list, tuple)) and choice else choice
-    if isinstance(picked, str) and picked:
-        new_unit = picked[-1].upper()
-        if new_unit in ("C", "F") and new_unit != unit:
-            st.session_state.unit = new_unit
-            st.rerun()
+    other = "F" if unit == "C" else "C"
+    _anchor("ws-ctl-unit")
+    if st.button(
+        f"°{unit}", key="ws_unit_btn", help=f"Units — switch to °{other}", **stretch()
+    ):
+        st.session_state["unit"] = other
+        st.rerun()
+
+
+#: theme -> (theme the pill switches *to*, its label, its icon class)
+THEME_ACTION = {
+    "dark": ("light", "Light mode"),
+    "light": ("dark", "Dark mode"),
+}
+
+
+def theme_toggle() -> None:
+    """Dark ⇄ light pill.
+
+    The palette lives entirely in CSS custom properties, so flipping it is one
+    session-state write plus a rerun — every surface, hairline, arc and icon is
+    re-painted from the new tokens, and the condition accent is re-tuned for the
+    new background by :func:`weather_sense.styles.accent_for`.
+    """
+    current = current_theme()
+    target, label = THEME_ACTION.get(current, THEME_ACTION[DEFAULT_THEME])
+    _anchor(f"ws-theme-anchor ws-go-{target}")
+    if st.button(
+        label, key="ws_theme_btn", help=f"Switch to {target} mode", **stretch()
+    ):
+        st.session_state["theme"] = target
+        try:                                  # keep the choice in the URL
+            if target == DEFAULT_THEME:
+                if "theme" in st.query_params:
+                    del st.query_params["theme"]
+            else:
+                st.query_params["theme"] = target
+        except Exception:
+            pass
+        st.rerun()
+
+
+def controls_row() -> None:
+    """The two view settings, right-aligned under the header."""
+    _, unit_col, theme_col = st.columns([3.55, 0.9, 1.85])
+    with unit_col:
+        unit_toggle()
+    with theme_col:
+        theme_toggle()
 
 
 # ---------------------------------------------------------------------------
