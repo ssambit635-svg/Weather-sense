@@ -1,2 +1,5 @@
-streamlit>=1.40
+streamlit>=1.37
 requests>=2.31
+# zoneinfo timezone database — required on Windows and slim/alpine containers,
+# where the system tzdata is missing and local-time lookups would fall back to UTC
+tzdata>=2024.1
