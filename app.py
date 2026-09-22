@@ -23,7 +23,7 @@ import streamlit as st
 from weather_sense import components as ui
 from weather_sense.api import (
     city_temps, code_info, fetch_bundle, fmt_t, geocode, local_now, locate_by_ip,
-    num, valid_place,
+    network_ok, num, valid_place,
 )
 from weather_sense.compat import (
     MIN_STREAMLIT, STREAMLIT_VERSION, control_flow_exceptions, fragment, stretch,
@@ -134,8 +134,8 @@ def render_shell(place: Optional[dict], bundle: Optional[dict]) -> None:
     if offline:
         st.markdown(
             """
-            <div class="notice">
-              <span style="color:var(--warn);margin-top:1px">%s</span>
+            <div class="notice info">
+              <span style="color:var(--accent);margin-top:1px">%s</span>
               <div><b>Offline preview.</b> Live weather services are unreachable from this
               environment, so a generated sample dataset is shown. Anywhere with network
               access fetches real conditions from Open-Meteo.</div>
@@ -201,6 +201,9 @@ def render_search(place: Optional[dict]) -> None:
             if valid_place(here):
                 persist_city(here)
                 st.rerun()
+            elif not network_ok():
+                st.info("IP location needs internet access and this session is "
+                        "offline — search for a city instead.")
             else:
                 st.error("Could not determine your location. Search for a city instead.")
     with lb:
